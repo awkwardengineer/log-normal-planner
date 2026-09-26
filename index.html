@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Log-Normal Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="min-h-screen bg-slate-50 text-slate-900">
+    <main class="mx-auto max-w-2xl px-4 py-10">
+      <header class="mb-8">
+        <h1 class="text-2xl font-semibold tracking-tight">Log-Normal Planner</h1>
+        <p class="mt-1 text-sm text-slate-500">Add tasks, then name them. Estimates come next.</p>
+      </header>
+
+      <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-3">
+          <h2 class="text-sm font-medium text-slate-700">Tasks</h2>
+        </div>
+
+        <ul id="task-list" class="divide-y divide-slate-100"></ul>
+
+        <div id="add-task-footer" class="hidden border-t border-slate-100 px-4 py-3">
+          <button
+            id="add-task-bottom"
+            type="button"
+            class="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            Add task
+          </button>
+        </div>
+
+        <button
+          id="empty-state"
+          type="button"
+          class="m-4 w-[calc(100%-2rem)] rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-600 hover:border-slate-400 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+        >
+          + Add a task to get started
+        </button>
+      </section>
+
+      <div
+        id="undo-toast"
+        role="status"
+        aria-live="polite"
+        class="mt-3 hidden items-center justify-between rounded-lg bg-slate-900 px-4 py-2 text-sm text-slate-100 shadow-sm"
+      >
+        <span id="undo-message">Task deleted.</span>
+        <button
+          id="undo-delete"
+          type="button"
+          class="rounded-md bg-white px-2.5 py-1 text-sm font-medium text-slate-900 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        >
+          Undo
+        </button>
+      </div>
+    </main>
+
+    <script>
+      const taskListEl = document.getElementById("task-list");
+      const emptyStateEl = document.getElementById("empty-state");
+      const addTaskFooterEl = document.getElementById("add-task-footer");
+      const addTaskBottomBtn = document.getElementById("add-task-bottom");
+      const undoToastEl = document.getElementById("undo-toast");
+      const undoMessageEl = document.getElementById("undo-message");
+      const undoDeleteBtn = document.getElementById("undo-delete");
+
+      const focusRing =
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900";
+
+      let nextId = 1;
+      let tasks = [];
+      let undo = null;
+
+      function taskIndex(id) {
+        return tasks.findIndex((task) => task.id === id);
+      }
+
+      function addTask(afterId = null) {
+        const task = { id: nextId++, name: "" };
+        const index = afterId == null ? tasks.length - 1 : taskIndex(afterId);
+        tasks.splice(index + 1, 0, task);
+        render({ focusTaskId: task.id });
+      }
+
+      function deleteTask(id) {
+        const index = taskIndex(id);
+        if (index === -1) return;
+
+        const [task] = tasks.splice(index, 1);
+        if (undo) clearTimeout(undo.timeoutId);
+        undo = {
+          task,
+          index,
+          timeoutId: setTimeout(() => {
+            undo = null;
+            renderUndo();
+          }, 5000),
+        };
+
+        const prev = tasks[index - 1];
+        const next = tasks[index];
+        if (prev) render({ focusTaskId: prev.id });
+        else if (next) render({ focusTaskId: next.id });
+        else render({ focusAdd: true });
+      }
+
+      function undoDelete() {
+        if (!undo) return;
+        const { task, index, timeoutId } = undo;
+        clearTimeout(timeoutId);
+        tasks.splice(index, 0, task);
+        undo = null;
+        render({ focusTaskId: task.id });
+      }
+
+      function renameTask(id, name) {
+        const task = tasks.find((t) => t.id === id);
+        if (task) task.name = name;
+      }
+
+      function focusAdd() {
+        if (tasks.length === 0) emptyStateEl.focus();
+        else addTaskBottomBtn.focus();
+      }
+
+      function renderUndo() {
+        const visible = Boolean(undo);
+        undoToastEl.classList.toggle("hidden", !visible);
+        undoToastEl.classList.toggle("flex", visible);
+        if (undo) {
+          const name = undo.task.name.trim();
+          undoMessageEl.textContent = name ? `Deleted “${name}”.` : "Deleted untitled task.";
+        }
+      }
+
+      function render(options = {}) {
+        const { focusTaskId = null, focusAdd: shouldFocusAdd = false } = options;
+        taskListEl.replaceChildren();
+        const hasTasks = tasks.length > 0;
+        emptyStateEl.classList.toggle("hidden", hasTasks);
+        addTaskFooterEl.classList.toggle("hidden", !hasTasks);
+
+        for (const task of tasks) {
+          const li = document.createElement("li");
+          li.dataset.taskId = String(task.id);
+          li.className = "flex items-center gap-3 px-4 py-2";
+
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = task.name;
+          input.placeholder = "Task name";
+          input.autocomplete = "off";
+          input.className = `min-w-0 flex-1 rounded-md border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-slate-400 ${focusRing}`;
+          input.addEventListener("input", (event) => {
+            renameTask(task.id, event.target.value);
+          });
+          input.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              const index = taskIndex(task.id);
+              const isLast = index === tasks.length - 1;
+              if (!task.name.trim() && isLast) return;
+              if (!task.name.trim()) {
+                const next = taskListEl.querySelector(
+                  `[data-task-id="${tasks[index + 1].id}"] input`,
+                );
+                if (next) next.focus();
+                return;
+              }
+              addTask(task.id);
+              return;
+            }
+            if (event.key === "Backspace" && task.name === "") {
+              event.preventDefault();
+              deleteTask(task.id);
+            }
+          });
+
+          const label = task.name.trim() ? `Delete ${task.name}` : "Delete untitled task";
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.textContent = "Delete";
+          remove.setAttribute("aria-label", label);
+          remove.className = `inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 px-2 text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 ${focusRing}`;
+          remove.addEventListener("click", () => deleteTask(task.id));
+
+          li.append(input, remove);
+          taskListEl.append(li);
+        }
+
+        renderUndo();
+
+        if (focusTaskId != null) {
+          const input = taskListEl.querySelector(`[data-task-id="${focusTaskId}"] input`);
+          if (input) input.focus();
+        } else if (shouldFocusAdd) {
+          focusAdd();
+        }
+      }
+
+      addTaskBottomBtn.addEventListener("click", () => addTask());
+      emptyStateEl.addEventListener("click", () => addTask());
+      undoDeleteBtn.addEventListener("click", undoDelete);
+      document.querySelector("main").addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        if (event.target === event.currentTarget) return;
+        event.preventDefault();
+        event.target.blur();
+      });
+      render();
+    </script>
+  </body>
+</html>
