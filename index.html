@@ -12,12 +12,47 @@
     <main class="mx-auto max-w-7xl px-4 py-10">
       <header class="mb-8">
         <h1 class="text-2xl font-semibold tracking-tight">Log-Normal Planner</h1>
-        <p class="mt-1 text-sm text-slate-500">Add tasks, then pick a mode and P<sub>90</sub> in hours.</p>
+        <p class="mt-1 text-sm text-slate-500">Add tasks, then pick a mode and P<sub>90</sub> in days.</p>
       </header>
 
       <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div id="tasks-heading" class="border-b border-slate-100 px-4 py-3">
-          <h2 class="text-sm font-medium text-slate-700">Tasks</h2>
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+          <h2 id="tasks-heading" class="text-sm font-medium text-slate-700">Tasks</h2>
+          <div class="ml-auto flex flex-col items-end gap-1.5">
+            <label for="start-date" class="flex items-center gap-2 text-sm text-slate-600">
+              Start date
+              <input
+                id="start-date"
+                type="date"
+                class="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-900 outline-none focus:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+              />
+            </label>
+            <label for="weekends-toggle" class="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                id="weekends-toggle"
+                type="checkbox"
+                checked
+                class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+              />
+              Skip weekends
+            </label>
+            <label for="federal-holidays-toggle" class="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                id="federal-holidays-toggle"
+                type="checkbox"
+                class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+              />
+              Federal holidays
+            </label>
+            <label for="winter-break-toggle" class="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                id="winter-break-toggle"
+                type="checkbox"
+                class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+              />
+              Winter break
+            </label>
+          </div>
         </div>
 
         <div
@@ -127,11 +162,30 @@
           <canvas id="histogram" class="h-full w-full"></canvas>
         </div>
       </section>
+
+      <section id="waterfall-section" class="mt-4 hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-3">
+          <h2 class="text-sm font-medium text-slate-700">Waterfall</h2>
+        </div>
+        <p class="px-4 pt-3 text-sm text-slate-500">
+          Calendar date each task finishes, if they run in list order.
+        </p>
+        <div id="waterfall-wrap" class="px-4 pb-4">
+          <div
+            id="waterfall-rows"
+            class="grid items-center gap-x-3 gap-y-1 [grid-template-columns:8rem_minmax(0,1fr)]"
+          ></div>
+        </div>
+      </section>
     </main>
 
     <script>
       const taskListEl = document.getElementById("task-list");
       const tasksHeadingEl = document.getElementById("tasks-heading");
+      const startDateEl = document.getElementById("start-date");
+      const weekendsToggleEl = document.getElementById("weekends-toggle");
+      const federalHolidaysToggleEl = document.getElementById("federal-holidays-toggle");
+      const winterBreakToggleEl = document.getElementById("winter-break-toggle");
       const columnHeadersEl = document.getElementById("column-headers");
       const emptyStateEl = document.getElementById("empty-state");
       const addTaskBottomBtn = document.getElementById("add-task-bottom");
@@ -150,11 +204,18 @@
       const statSimP90El = document.getElementById("stat-sim-p90");
       const histogramEl = document.getElementById("histogram");
       const histogramWrapEl = document.getElementById("histogram-wrap");
+      const waterfallSectionEl = document.getElementById("waterfall-section");
+      const waterfallRowsEl = document.getElementById("waterfall-rows");
 
-      const MODE_HOURS = [1, 2, 3, 5, 8, 13];
-      const P90_HOURS = [1, 2, 3, 5, 8, 13, 21];
+      const MODE_DAYS = [1, 2, 3, 5, 8, 13];
+      const P90_DAYS = [1, 2, 3, 5, 8, 13, 21];
+      const HOURS_PER_DAY = 8;
       const DEFAULT_RUNS = 10000;
+      const DEFAULT_WEEKENDS = true;
+      const DEFAULT_FEDERAL_HOLIDAYS = false;
+      const DEFAULT_WINTER_BREAK = false;
       const Z90 = 1.2815515655446004;
+      const federalHolidayCache = new Map();
 
       const focusRing =
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900";
@@ -163,10 +224,15 @@
 
       let nextId = 1;
       let tasks = [];
+      let startDate = todayISO();
+      let weekends = DEFAULT_WEEKENDS;
+      let federalHolidays = DEFAULT_FEDERAL_HOLIDAYS;
+      let winterBreak = DEFAULT_WINTER_BREAK;
       let runs = DEFAULT_RUNS;
       let undo = null;
       let applyingHash = false;
       let histogramChart = null;
+      let waterfallCharts = [];
 
       function bytesToBase64Url(bytes) {
         let binary = "";
@@ -183,32 +249,226 @@
         return bytes;
       }
 
-      function nearestHour(value, series) {
+      function nearestDay(value, series) {
         const n = Number(value);
         if (series.includes(n)) return n;
-        return series.reduce((best, hour) =>
-          Math.abs(hour - n) < Math.abs(best - n) ? hour : best,
+        return series.reduce((best, day) =>
+          Math.abs(day - n) < Math.abs(best - n) ? day : best,
         );
       }
 
       function largestAtMost(value, series) {
-        const allowed = series.filter((hour) => hour <= value);
+        const allowed = series.filter((day) => day <= value);
         return allowed.length ? allowed[allowed.length - 1] : series[0];
       }
 
-      function parseHour(value, series) {
+      function parseDay(value, series) {
         if (value == null || value === "") return null;
         const n = Number(value);
         if (!Number.isFinite(n)) return null;
-        return nearestHour(n, series);
+        return nearestDay(n, series);
+      }
+
+      function daysToHours(days) {
+        return days * HOURS_PER_DAY;
+      }
+
+      function hoursToDays(hours) {
+        return hours / HOURS_PER_DAY;
+      }
+
+      function todayISO() {
+        return formatISODate(new Date());
+      }
+
+      function formatISODate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      }
+
+      function parseISODate(value) {
+        if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+        const [year, month, day] = value.split("-").map(Number);
+        const date = new Date(year, month - 1, day);
+        if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+          return null;
+        }
+        return date;
+      }
+
+      function clampStartDate(value) {
+        return parseISODate(value) ? value : todayISO();
+      }
+
+      function addCalendarDays(date, count) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate() + count);
+      }
+
+      function nthWeekdayOfMonth(year, month, weekday, n) {
+        const first = new Date(year, month, 1);
+        const day = 1 + ((weekday - first.getDay() + 7) % 7) + (n - 1) * 7;
+        return new Date(year, month, day);
+      }
+
+      function lastWeekdayOfMonth(year, month, weekday) {
+        const last = new Date(year, month + 1, 0);
+        return new Date(year, month, last.getDate() - ((last.getDay() - weekday + 7) % 7));
+      }
+
+      function observedHoliday(year, month, day) {
+        const date = new Date(year, month, day);
+        const weekday = date.getDay();
+        if (weekday === 6) return addCalendarDays(date, -1);
+        if (weekday === 0) return addCalendarDays(date, 1);
+        return date;
+      }
+
+      function federalHolidayKeys(year) {
+        const cached = federalHolidayCache.get(year);
+        if (cached) return cached;
+        const thanksgiving = nthWeekdayOfMonth(year, 10, 4, 4);
+        const keys = new Set(
+          [
+            observedHoliday(year, 0, 1),
+            nthWeekdayOfMonth(year, 0, 1, 3),
+            nthWeekdayOfMonth(year, 1, 1, 3),
+            lastWeekdayOfMonth(year, 4, 1),
+            observedHoliday(year, 5, 19),
+            observedHoliday(year, 6, 4),
+            nthWeekdayOfMonth(year, 8, 1, 1),
+            nthWeekdayOfMonth(year, 9, 1, 2),
+            observedHoliday(year, 10, 11),
+            thanksgiving,
+            addCalendarDays(thanksgiving, 1),
+            observedHoliday(year, 11, 25),
+          ].map(formatISODate),
+        );
+        federalHolidayCache.set(year, keys);
+        return keys;
+      }
+
+      function isFederalHoliday(date) {
+        const key = formatISODate(date);
+        const year = date.getFullYear();
+        return (
+          federalHolidayKeys(year).has(key) ||
+          federalHolidayKeys(year - 1).has(key) ||
+          federalHolidayKeys(year + 1).has(key)
+        );
+      }
+
+      function isWinterBreak(date) {
+        const month = date.getMonth();
+        const day = date.getDate();
+        return (month === 11 && day >= 24) || (month === 0 && day === 1);
+      }
+
+      function isWorkday(date) {
+        if (weekends) {
+          const weekday = date.getDay();
+          if (weekday === 0 || weekday === 6) return false;
+        }
+        if (federalHolidays && isFederalHoliday(date)) return false;
+        if (winterBreak && isWinterBreak(date)) return false;
+        return true;
+      }
+
+      function parseFlag(value, fallback) {
+        if (value === false || value === 0 || value === "0") return false;
+        if (value === true || value === 1 || value === "1") return true;
+        return fallback;
+      }
+
+      function renderCalendarToggles() {
+        weekendsToggleEl.checked = weekends;
+        federalHolidaysToggleEl.checked = federalHolidays;
+        winterBreakToggleEl.checked = winterBreak;
+      }
+
+      function dateForWorkingDays(startISO, workingDays) {
+        let cursor = parseISODate(startISO) ?? parseISODate(todayISO());
+        const days = Number(workingDays);
+        while (!isWorkday(cursor)) cursor = addCalendarDays(cursor, 1);
+        if (!Number.isFinite(days) || days <= 0) return cursor;
+        let left = days;
+        while (true) {
+          if (isWorkday(cursor)) {
+            if (left <= 1) return cursor;
+            left -= 1;
+          }
+          cursor = addCalendarDays(cursor, 1);
+        }
+      }
+
+      function calendarDaysBetween(from, to) {
+        const ms =
+          Date.UTC(to.getFullYear(), to.getMonth(), to.getDate()) -
+          Date.UTC(from.getFullYear(), from.getMonth(), from.getDate());
+        return Math.round(ms / 86400000);
+      }
+
+      function workingDaysToCalendarElapsed(startISO, workingDays) {
+        const origin = parseISODate(startISO) ?? parseISODate(todayISO());
+        const finish = dateForWorkingDays(startISO, workingDays);
+        return calendarDaysBetween(origin, finish);
+      }
+
+      function dateForElapsedDays(startISO, elapsed) {
+        const origin = parseISODate(startISO) ?? parseISODate(todayISO());
+        return addCalendarDays(origin, Math.round(Number(elapsed) || 0));
+      }
+
+      function formatAxisDate(date) {
+        const origin = parseISODate(startDate);
+        const options = { month: "short", day: "numeric" };
+        if (!origin || date.getFullYear() !== origin.getFullYear()) options.year = "2-digit";
+        return date.toLocaleDateString("en-US", options);
+      }
+
+      function formatCalendarPoint(elapsed) {
+        return `${formatDays(elapsed)} · ${formatAxisDate(dateForElapsedDays(startDate, elapsed))}`;
+      }
+
+      function dayDateScales(xMin, xMax) {
+        return {
+          x: {
+            type: "linear",
+            min: xMin,
+            max: xMax,
+            position: "bottom",
+            display: true,
+            title: { display: true, text: "Calendar days" },
+            ticks: { maxTicksLimit: 12 },
+            grid: { display: false },
+          },
+          xDate: {
+            type: "linear",
+            axis: "x",
+            min: xMin,
+            max: xMax,
+            position: "top",
+            display: true,
+            title: { display: true, text: "Date" },
+            ticks: {
+              maxTicksLimit: 12,
+              callback(value) {
+                if (typeof value !== "number") return "";
+                return formatAxisDate(dateForElapsedDays(startDate, value));
+              },
+            },
+            grid: { drawOnChartArea: false },
+          },
+        };
       }
 
       function normalizeEstimate(mode, p90) {
-        let nextMode = parseHour(mode, MODE_HOURS);
-        let nextP90 = parseHour(p90, P90_HOURS);
+        let nextMode = parseDay(mode, MODE_DAYS);
+        let nextP90 = parseDay(p90, P90_DAYS);
         if (nextMode != null && nextP90 != null) {
-          if (nextMode > nextP90) nextP90 = nearestHour(nextMode, P90_HOURS);
-          if (nextP90 < nextMode) nextMode = largestAtMost(nextP90, MODE_HOURS);
+          if (nextMode > nextP90) nextP90 = nearestDay(nextMode, P90_DAYS);
+          if (nextP90 < nextMode) nextMode = largestAtMost(nextP90, MODE_DAYS);
         }
         return { mode: nextMode, p90: nextP90 };
       }
@@ -224,6 +484,10 @@
         const json = JSON.stringify({
           v: 2,
           r: runs,
+          s: startDate,
+          w: weekends ? 1 : 0,
+          h: federalHolidays ? 1 : 0,
+          b: winterBreak ? 1 : 0,
           t: tasks.map((task) => [task.name, task.mode, task.p90]),
         });
         return bytesToBase64Url(new TextEncoder().encode(json));
@@ -231,7 +495,16 @@
 
       function decodeDocument(hash) {
         const raw = hash.startsWith("#") ? hash.slice(1) : hash;
-        if (!raw) return { records: [], runs: DEFAULT_RUNS };
+        if (!raw) {
+          return {
+            records: [],
+            runs: DEFAULT_RUNS,
+            startDate: todayISO(),
+            weekends: DEFAULT_WEEKENDS,
+            federalHolidays: DEFAULT_FEDERAL_HOLIDAYS,
+            winterBreak: DEFAULT_WINTER_BREAK,
+          };
+        }
         try {
           const json = new TextDecoder().decode(base64UrlToBytes(raw));
           const data = JSON.parse(json);
@@ -252,14 +525,31 @@
             });
           }
           if (!records) return null;
-          return { records, runs: clampRuns(data.r) };
+          return {
+            records,
+            runs: clampRuns(data.r),
+            startDate: clampStartDate(data.s),
+            weekends: parseFlag(data.w, DEFAULT_WEEKENDS),
+            federalHolidays: parseFlag(data.h, DEFAULT_FEDERAL_HOLIDAYS),
+            winterBreak: parseFlag(data.b, DEFAULT_WINTER_BREAK),
+          };
         } catch {
           return null;
         }
       }
 
+      function hasHashState() {
+        return (
+          tasks.length > 0 ||
+          startDate !== todayISO() ||
+          weekends !== DEFAULT_WEEKENDS ||
+          federalHolidays !== DEFAULT_FEDERAL_HOLIDAYS ||
+          winterBreak !== DEFAULT_WINTER_BREAK
+        );
+      }
+
       function encodedBytes() {
-        if (tasks.length === 0) return 0;
+        if (!hasHashState()) return 0;
         return encodeState().length;
       }
 
@@ -269,7 +559,7 @@
 
       function writeHash() {
         if (applyingHash) return;
-        const encoded = tasks.length === 0 ? "" : encodeState();
+        const encoded = hasHashState() ? encodeState() : "";
         const next = encoded ? `#${encoded}` : location.pathname + location.search;
         const current = encoded
           ? `${location.pathname}${location.search}#${encoded}`
@@ -298,12 +588,22 @@
         if (doc === null) {
           applyTasks([]);
           runs = DEFAULT_RUNS;
+          startDate = todayISO();
+          weekends = DEFAULT_WEEKENDS;
+          federalHolidays = DEFAULT_FEDERAL_HOLIDAYS;
+          winterBreak = DEFAULT_WINTER_BREAK;
         } else {
           applyTasks(doc.records);
           runs = doc.runs;
+          startDate = doc.startDate;
+          weekends = doc.weekends;
+          federalHolidays = doc.federalHolidays;
+          winterBreak = doc.winterBreak;
         }
         runsSliderEl.value = String(runs);
         runsLabelEl.textContent = runs.toLocaleString("en-US");
+        startDateEl.value = startDate;
+        renderCalendarToggles();
         applyingHash = false;
       }
 
@@ -359,32 +659,32 @@
         writeHash();
       }
 
-      function setMode(id, hours) {
+      function setMode(id, days) {
         const task = tasks.find((t) => t.id === id);
         if (!task) return;
-        if (task.mode === hours) {
+        if (task.mode === days) {
           task.mode = null;
           render();
           return;
         }
-        task.mode = parseHour(hours, MODE_HOURS);
+        task.mode = parseDay(days, MODE_DAYS);
         if (task.mode != null && task.p90 != null && task.mode > task.p90) {
-          task.p90 = nearestHour(task.mode, P90_HOURS);
+          task.p90 = nearestDay(task.mode, P90_DAYS);
         }
         render();
       }
 
-      function setP90(id, hours) {
+      function setP90(id, days) {
         const task = tasks.find((t) => t.id === id);
         if (!task) return;
-        if (task.p90 === hours) {
+        if (task.p90 === days) {
           task.p90 = null;
           render();
           return;
         }
-        task.p90 = parseHour(hours, P90_HOURS);
+        task.p90 = parseDay(days, P90_DAYS);
         if (task.mode != null && task.p90 != null && task.p90 < task.mode) {
-          task.mode = largestAtMost(task.p90, MODE_HOURS);
+          task.mode = largestAtMost(task.p90, MODE_DAYS);
         }
         render();
       }
@@ -447,9 +747,10 @@
         return sorted[lo] * (hi - index) + sorted[hi] * (index - lo);
       }
 
-      function binSamples(samples, binCount = 40, maxBound = null) {
-        const min = Math.min(...samples);
+      function binSamples(samples, binCount = 40, maxBound = null, minBound = null) {
+        const sampleMin = Math.min(...samples);
         const sampleMax = Math.max(...samples);
+        const min = minBound != null ? minBound : sampleMin;
         const max = maxBound != null && maxBound > min ? maxBound : sampleMax;
         const span = max - min || 1;
         const width = span / binCount;
@@ -459,30 +760,49 @@
           labels.push(min + (i + 0.5) * width);
         }
         for (const value of samples) {
-          if (value >= max) continue;
+          if (value < min || value >= max) continue;
           let i = Math.floor((value - min) / width);
           if (i >= binCount) i = binCount - 1;
           if (i < 0) i = 0;
           counts[i] += 1;
         }
-        return { labels, counts, width, max };
+        return { labels, counts, width, min, max };
       }
 
-      function simulateTotals(readyTasks) {
-        const fits = readyTasks.map((task) => fitLogNormal(task.mode, task.p90));
-        if (fits.some((fit) => !fit)) return [];
+      function binElapsedDays(samples, maxElapsed) {
+        const max = Math.max(1, Math.ceil(maxElapsed));
+        const counts = Array(max).fill(0);
+        const labels = [];
+        for (let i = 0; i < max; i++) labels.push(i + 0.5);
+        for (const value of samples) {
+          const day = Math.floor(value);
+          if (day < 0 || day >= max) continue;
+          counts[day] += 1;
+        }
+        return { labels, counts, min: 0, max };
+      }
+
+      function simulateRuns(readyTasks) {
+        const fits = readyTasks.map((task) =>
+          fitLogNormal(daysToHours(task.mode), daysToHours(task.p90)),
+        );
+        if (fits.some((fit) => !fit)) return { totals: [], finishByTask: [] };
+        const finishByTask = fits.map(() => []);
         const totals = [];
         for (let i = 0; i < runs; i++) {
           let sum = 0;
-          for (const fit of fits) sum += sampleLogNormal(fit.mu, fit.sigma);
+          for (let t = 0; t < fits.length; t++) {
+            sum += sampleLogNormal(fits[t].mu, fits[t].sigma);
+            finishByTask[t].push(sum);
+          }
           totals.push(sum);
         }
-        return totals;
+        return { totals, finishByTask };
       }
 
-      function formatHours(value) {
+      function formatDays(value) {
         const rounded = Math.round(value * 10) / 10;
-        return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)} h`;
+        return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)} d`;
       }
 
       function clearHistogram() {
@@ -490,12 +810,16 @@
           histogramChart.destroy();
           histogramChart = null;
         }
+        for (const chart of waterfallCharts) chart.destroy();
+        waterfallCharts = [];
+        waterfallRowsEl.replaceChildren();
         histogramWrapEl.classList.add("hidden");
+        waterfallSectionEl.classList.add("hidden");
         outputStatsEl.classList.add("hidden");
         outputStatsEl.classList.remove("flex");
       }
 
-      function drawHistogram(samples, readyTasks) {
+      function drawHistogram(samples, readyTasks, xMax) {
         if (typeof Chart === "undefined") {
           outputStatusEl.textContent = "Chart.js failed to load.";
           return;
@@ -504,7 +828,7 @@
         const p90 = percentile(sorted, 0.9);
         const sumMode = readyTasks.reduce((sum, task) => sum + task.mode, 0);
         const sumP90 = readyTasks.reduce((sum, task) => sum + task.p90, 0);
-        const { labels, counts, max: xMax } = binSamples(samples, 40, sumP90 * 1.2);
+        const { labels, counts, min: xMin } = binElapsedDays(samples, xMax);
         let modeIndex = 0;
         for (let i = 1; i < counts.length; i++) {
           if (counts[i] > counts[modeIndex]) modeIndex = i;
@@ -514,10 +838,10 @@
           histogramChart.destroy();
           histogramChart = null;
         }
-        statSumModeEl.textContent = formatHours(sumMode);
-        statSumP90El.textContent = formatHours(sumP90);
-        statSimModeEl.textContent = formatHours(mode);
-        statSimP90El.textContent = formatHours(p90);
+        statSumModeEl.textContent = formatDays(sumMode);
+        statSumP90El.textContent = formatDays(sumP90);
+        statSimModeEl.textContent = formatDays(mode);
+        statSimP90El.textContent = formatDays(p90);
         const chips = [
           [sumMode, statSumModeEl.closest("[data-stat]")],
           [sumP90, statSumP90El.closest("[data-stat]")],
@@ -535,12 +859,24 @@
           data: {
             datasets: [
               {
-                data: labels.map((hour, i) => ({ x: hour, y: counts[i] })),
+                xAxisID: "x",
+                data: labels.map((day, i) => ({ x: day, y: counts[i] })),
                 backgroundColor: "rgb(15 23 42 / 0.75)",
                 hoverBackgroundColor: "rgb(15 23 42 / 0.9)",
                 borderRadius: 2,
                 barPercentage: 1,
                 categoryPercentage: 1,
+              },
+              {
+                type: "line",
+                xAxisID: "xDate",
+                data: [
+                  { x: xMin, y: 0 },
+                  { x: xMax, y: 0 },
+                ],
+                borderWidth: 0,
+                pointRadius: 0,
+                fill: false,
               },
             ],
           },
@@ -548,8 +884,24 @@
             responsive: true,
             maintainAspectRatio: false,
             parsing: false,
+            layout: { padding: { top: 4 } },
             plugins: {
               legend: { display: false },
+              tooltip: {
+                filter(item) {
+                  return item.datasetIndex === 0;
+                },
+                callbacks: {
+                  title(items) {
+                    const days = items[0]?.parsed?.x;
+                    if (days == null) return "";
+                    return formatCalendarPoint(days);
+                  },
+                  label(item) {
+                    return `${item.parsed.y} runs`;
+                  },
+                },
+              },
               annotation: {
                 annotations: {
                   modeLine: {
@@ -572,13 +924,7 @@
               },
             },
             scales: {
-              x: {
-                type: "linear",
-                max: xMax,
-                title: { display: true, text: "Hours" },
-                ticks: { maxTicksLimit: 12 },
-                grid: { display: false },
-              },
+              ...dayDateScales(xMin, xMax),
               y: {
                 title: { display: true, text: "Runs" },
                 beginAtZero: true,
@@ -586,6 +932,100 @@
               },
             },
           },
+        });
+      }
+
+      function drawWaterfall(finishByTask, readyTasks, xMax) {
+        if (typeof Chart === "undefined" || finishByTask.length === 0) return;
+        for (const chart of waterfallCharts) chart.destroy();
+        waterfallCharts = [];
+        waterfallRowsEl.replaceChildren();
+        waterfallSectionEl.classList.remove("hidden");
+
+        const last = finishByTask.length - 1;
+        finishByTask.forEach((samples, index) => {
+          const isLast = index === last;
+          const { labels, counts } = binElapsedDays(samples, xMax);
+          const name = readyTasks[index].name.trim() || "Untitled task";
+
+          const nameEl = document.createElement("div");
+          nameEl.className = "truncate text-xs text-slate-600";
+          nameEl.textContent = name;
+
+          const chartWrap = document.createElement("div");
+          chartWrap.className = isLast ? "h-28" : "h-14";
+          const canvas = document.createElement("canvas");
+          chartWrap.append(canvas);
+          waterfallRowsEl.append(nameEl, chartWrap);
+
+          const scales = dayDateScales(0, xMax);
+          if (!isLast) {
+            scales.x.display = false;
+            scales.xDate.display = false;
+          }
+
+          waterfallCharts.push(
+            new Chart(canvas, {
+              type: "bar",
+              data: {
+                datasets: [
+                  {
+                    xAxisID: "x",
+                    label: name,
+                    data: labels.map((day, i) => ({ x: day, y: counts[i] })),
+                    backgroundColor: "rgb(15 23 42 / 0.75)",
+                    hoverBackgroundColor: "rgb(15 23 42 / 0.9)",
+                    borderRadius: 2,
+                    barPercentage: 1,
+                    categoryPercentage: 1,
+                  },
+                  {
+                    type: "line",
+                    xAxisID: "xDate",
+                    data: [
+                      { x: 0, y: 0 },
+                      { x: xMax, y: 0 },
+                    ],
+                    borderWidth: 0,
+                    pointRadius: 0,
+                    fill: false,
+                  },
+                ],
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                parsing: false,
+                plugins: {
+                  legend: { display: false },
+                  tooltip: {
+                    filter(item) {
+                      return item.datasetIndex === 0;
+                    },
+                    callbacks: {
+                      title(items) {
+                        return items[0]?.dataset.label ?? "";
+                      },
+                      label(item) {
+                        return `${formatCalendarPoint(item.parsed.x)} · ${item.parsed.y} runs`;
+                      },
+                    },
+                  },
+                },
+                scales: {
+                  ...scales,
+                  y: {
+                    display: false,
+                    beginAtZero: true,
+                    ticks: { display: false },
+                    grid: { display: false },
+                    border: { display: false },
+                  },
+                },
+              },
+            }),
+          );
         });
       }
 
@@ -604,7 +1044,16 @@
           clearHistogram();
           return;
         }
-        drawHistogram(simulateTotals(ready), ready);
+        const { totals, finishByTask } = simulateRuns(ready);
+        const effortCap = ready.reduce((sum, task) => sum + task.p90, 0) * 1.2;
+        const xMax = Math.max(1, workingDaysToCalendarElapsed(startDate, effortCap));
+        const toElapsed = (hours) => workingDaysToCalendarElapsed(startDate, hoursToDays(hours));
+        drawHistogram(totals.map(toElapsed), ready, xMax);
+        drawWaterfall(
+          finishByTask.map((samples) => samples.map(toElapsed)),
+          ready,
+          xMax,
+        );
       }
 
       function setRuns(value, { simulate = false } = {}) {
@@ -641,7 +1090,7 @@
       }
 
       function fibGroup(task, kind) {
-        const hours = kind === "mode" ? MODE_HOURS : P90_HOURS;
+        const days = kind === "mode" ? MODE_DAYS : P90_DAYS;
         const selected = kind === "mode" ? task.mode : task.p90;
         const title = kind === "mode" ? "Mode" : "P90";
         const isSet = selected != null;
@@ -653,12 +1102,12 @@
           `${title} for ${task.name.trim() || "untitled task"}`,
         );
 
-        for (const hour of hours) {
-          const pressed = hour === selected;
+        for (const day of days) {
+          const pressed = day === selected;
           const btn = document.createElement("button");
           btn.type = "button";
           btn.tabIndex = -1;
-          btn.textContent = String(hour);
+          btn.textContent = String(day);
           btn.setAttribute("aria-pressed", String(pressed));
           btn.className = pressed
             ? `inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-slate-900 px-1.5 text-sm font-medium text-white ${focusRingOnDark}`
@@ -666,8 +1115,8 @@
               ? `inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-transparent px-1.5 text-sm font-medium text-slate-300 hover:bg-slate-100 hover:text-slate-700 ${focusRing}`
               : `inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-slate-100 px-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200 ${focusRing}`;
           btn.addEventListener("click", () => {
-            if (kind === "mode") setMode(task.id, hour);
-            else setP90(task.id, hour);
+            if (kind === "mode") setMode(task.id, day);
+            else setP90(task.id, day);
           });
           row.append(btn);
         }
@@ -759,9 +1208,43 @@
         renderOutput();
       }
 
+      function setStartDate(value) {
+        startDate = clampStartDate(value);
+        startDateEl.value = startDate;
+        writeHash();
+        renderOutput();
+      }
+
+      function setWeekends(next) {
+        weekends = Boolean(next);
+        renderCalendarToggles();
+        writeHash();
+        renderOutput();
+      }
+
+      function setFederalHolidays(next) {
+        federalHolidays = Boolean(next);
+        renderCalendarToggles();
+        writeHash();
+        renderOutput();
+      }
+
+      function setWinterBreak(next) {
+        winterBreak = Boolean(next);
+        renderCalendarToggles();
+        writeHash();
+        renderOutput();
+      }
+
       addTaskBottomBtn.addEventListener("click", () => addTask());
       emptyStateEl.addEventListener("click", () => addTask());
       undoDeleteBtn.addEventListener("click", undoDelete);
+      startDateEl.addEventListener("change", () => setStartDate(startDateEl.value));
+      weekendsToggleEl.addEventListener("change", () => setWeekends(weekendsToggleEl.checked));
+      federalHolidaysToggleEl.addEventListener("change", () =>
+        setFederalHolidays(federalHolidaysToggleEl.checked),
+      );
+      winterBreakToggleEl.addEventListener("change", () => setWinterBreak(winterBreakToggleEl.checked));
       resimulateBtn.addEventListener("click", () => renderOutput());
       runsSliderEl.addEventListener("input", () => setRuns(runsSliderEl.value));
       runsSliderEl.addEventListener("change", () => setRuns(runsSliderEl.value, { simulate: true }));

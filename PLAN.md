@@ -18,7 +18,7 @@ A single-file project planner that uses log-normal Monte Carlo simulation to est
 
 ## Overview
 
-Someone loads the HTML file. They add tasks one by one. For each task they pick a **mode** (likely case) and a **P90** (90th percentile) from Fibonacci hour buttons.
+Someone loads the HTML file. They add tasks one by one. For each task they pick a **mode** (likely case) and a **P90** (90th percentile) from Fibonacci **day** buttons.
 
 Mathematically, the likely case is the **mode** of the log-normal distribution.
 
@@ -27,27 +27,27 @@ The Monte Carlo simulator then runs many simulations. In each run it samples a d
 ## Features
 
 - [x] **Task rows.** Add and delete task rows. Delete is a trash icon. Tab order is name → name → Add (estimate chips and delete are not tab stops).
-- [x] **Estimates.** Each task has a **Mode** column (likely case) and a **P90** column. Hours for now; a time-unit control comes later.
+- [x] **Estimates.** Each task has a **Mode** column (likely case) and a **P90** column. Phase 2: chips are **days**. Hours / days / weeks switching is Phase 3.
   - Mode buttons: **1, 2, 3, 5, 8, 13**.
   - P90 buttons: **1, 2, 3, 5, 8, 13, 21**.
   - Columns start **unset**. Clicking the selected chip clears that column.
   - The chip you click wins: a Mode above P90 **raises P90**; a P90 below Mode **pulls Mode down** to the highest legal Fibonacci at or under that P90.
   - Layout: three bands — wide name field, Mode + P90 as one estimate band (equal column width, extra gap between groups), trash in its own action column. Headers use a real P<sub>90</sub> subscript.
-- [x] **URL state.** Encode task names, mode, and P90 into the URL (base64url hash, payload `v: 2`). Unset values are `null`. Older name-only hashes still load.
+- [x] **URL state.** Encode task names, mode, and P90 into the URL (base64url hash, payload `v: 2`). Unset values are `null`. Older name-only hashes still load. Phase 2 also stores **start date**, **weekends**, **federal holidays**, and **winter break** in that same hash (no version bump). Old hour-based links are thrown out.
 - [x] **URL usage.** Show encoded payload size under the task list (`1,700 bytes`). Remaining headroom and a **2k** / **8k** warn target still TBD.
-- [x] **Output.** Monte Carlo histogram of total hours (Chart.js via CDN). Slider for run count (**500–10,000**, default **10,000**). **Re-simulate** draws a new sample. Hours in and out for now.
+- [x] **Output.** Monte Carlo histogram of total duration (Chart.js via CDN). Slider for run count (**500–10,000**, default **10,000**). **Re-simulate** draws a new sample. Phase 2: display in **elapsed calendar days** plus calendar dates.
   - Incomplete estimates: do not invent values. Ignore fully blank rows. If any real task is missing Mode or P₉₀, hide the chart, list what is missing, and disable Re-simulate.
-- **Time units.** Choose hours, days, or weeks for inputs and outputs. Underlying calculations convert everything to hours.
-- **Calendar / availability.** Account for weekends, holidays, vacation, and sick time. There are several ways to model this; details TBD — come back to it. Related: a **project start date** (until then, assume the plan starts today).
+- [x] **Time units (Phase 2).** UI is **days** (same Fibonacci chips). Simulation stays in **hours** (`1 day = 8 hours`). Hours / days / weeks switching is Phase 3 — no unit field in the hash yet.
+- [x] **Calendar / availability (Phase 2).** Start-date picker, skip weekends, federal holidays, winter break. Defaults: **start date = today**, **weekends on**, **federal holidays off**, **winter break off**. All live in the URL hash. Vacation and sick time still later.
 - **Critical-chain planning (later).** Plan the schedule against the modal case, and treat the remaining time (e.g. to P90) as a buffer. Details TBD.
 - **Actuals (later).** Record actual durations so critical-chain methods can track buffer consumption against the plan.
 
 ## Presentation Features
 
-- [x] **Base view.** Show the histogram of simulated totals (mode and P90 lines as described above). Hours on the axis for now.
-- **Calendar overlay.** If weekends and holidays are enabled, show those on the chart.
-- **Start date.** For now, assume the plan starts today. Later, capture a start date (see calendar / availability).
-- **Waterfall (later).** A “waterfall” plot: a series of histograms on the same chart (one per task / cumulative stage).
+- [x] **Base view.** Histogram of simulated totals (mode and P90 lines). Phase 2: x-axis is **elapsed calendar days** from the start date, with calendar-date labels. Non-work days are empty bins.
+- **Calendar overlay (later).** Extra shading of weekend and holiday bands, if we want more than the empty bins.
+- [x] **Start date.** Date picker at the top of the task inputs. Default **today**. Persist in the hash with weekends and holidays.
+- [x] **Waterfall.** Small finish-time histograms, one per task: each row is when that task finishes if they run in list order (prefix sums). Same elapsed-calendar axis as the total graph.
 
 ## Technical notes
 
@@ -61,10 +61,29 @@ Single HTML file. Tailwind via CDN. No build step.
 
 1. [x] **Task list.** Add, delete, and name task rows. Done — interaction locked in `agent-prompt.md`.
 2. [x] **Encode / recover.** Persist the task list in the URL hash; reload or share the link and the same list comes back.
-3. [x] **Estimates.** Mode and P90 Fibonacci hour buttons on each task; persist selections in the hash. Start unset; the clicked chip is the source of truth for snaps.
-4. [x] **Output graph.** Run the simulation and show the histogram (mode and P90 lines).
+3. [x] **Estimates (Phase 1, shipped).** Mode and P90 Fibonacci **hour** buttons on each task; persist selections in the hash. Start unset; the clicked chip is the source of truth for snaps.
+4. [x] **Output graph (Phase 1, shipped).** Run the simulation and show the histogram (mode and P90 lines) in hours.
+5. [x] **Waterfall.** Finish-time ridge plot (cumulative time to finish each task, list order).
 
-Then come back and iterate: 2k / 8k remaining-budget meter, time units, calendar / start date, waterfall, critical-chain, actuals, and the rest.
+### Phase 2
+
+Still one HTML file. Tailwind via CDN. No build step. The UI speaks **days**. Simulation stays in **hours** (`1 day = 8 hours`).
+
+1. [x] **Days in and out.** Mode / P90 chips are **days** (`1, 2, 3, 5, 8, 13` and P90 `+ 21`). Convert to hours for the log-normal fit and Monte Carlo. **Do not bump the URL payload.** Old hour-based links are thrown out (same `v: 2` shape, new meaning). Units in the hash are Phase 3.
+2. [x] **Start date.** Date picker at the top of the task inputs. Default **today**. Persist in the URL hash. Calendar origin for every simulated duration.
+3. [x] **Elapsed calendar axis (both graphs).** Plot in **elapsed calendar days** from the start date (this stretches the shape across non-work days). Dual labels: calendar days and the **calendar date**. Non-work days are empty bins.
+4. [x] **Weekends.** Checkbox **Skip weekends**. **Default on.** Persist in the URL hash. Saturday and Sunday are non-working; work resumes Monday. A working day is 8 hours.
+5. [x] **Holidays.** Two checkboxes, both **default off**, both in the URL hash:
+   - **Federal holidays:** US federal holidays (usual weekday observance) plus the day after Thanksgiving.
+   - **Winter break:** **December 24 through January 1** inclusive.
+
+Work calendar applies when mapping effort hours onto calendar dates. The Monte Carlo still sums task hours; it does not simulate “Saturday work.”
+
+### Phase 3
+
+1. **Unit switching.** Control to display and enter estimates in **hours, days, or weeks**. Persist the selected unit in the URL. Convert at the edges; simulation stays in hours. This is where we handle units in the payload (Phase 2 does not).
+
+Then come back and iterate: calendar overlay (shade non-work days), 2k / 8k remaining-budget meter, vacation / sick time, critical-chain, actuals, and the rest.
 
 _To be continued._
 
