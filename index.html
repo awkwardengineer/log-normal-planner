@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Log-Normal Planner</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
   </head>
   <body class="min-h-screen bg-slate-50 text-slate-900">
     <main class="mx-auto max-w-7xl px-4 py-10">
@@ -69,6 +71,62 @@
           Undo
         </button>
       </div>
+
+      <section class="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+          <h2 class="text-sm font-medium text-slate-700">Simulation</h2>
+          <button
+            id="resimulate"
+            type="button"
+            class="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:hover:bg-slate-300"
+          >
+            Re-simulate
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center gap-4 px-4 py-3">
+          <label for="runs-slider" class="text-sm text-slate-600">
+            Runs
+            <span id="runs-label" class="ml-1 font-medium tabular-nums text-slate-900">10,000</span>
+          </label>
+          <input
+            id="runs-slider"
+            type="range"
+            min="500"
+            max="10000"
+            step="500"
+            value="10000"
+            class="min-w-48 flex-1 accent-slate-900"
+          />
+        </div>
+      </section>
+
+      <section class="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-3">
+          <h2 class="text-sm font-medium text-slate-700">Graph</h2>
+        </div>
+        <p id="output-status" class="px-4 pt-4 text-sm text-slate-500"></p>
+        <div id="output-stats" class="hidden flex flex-wrap gap-2 px-4 pt-3">
+          <div data-stat="sum-mode" class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
+            <span class="text-xs font-medium text-slate-500">Sum of modes</span>
+            <span id="stat-sum-mode" class="text-sm font-medium tabular-nums text-slate-900">—</span>
+          </div>
+          <div data-stat="sum-p90" class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
+            <span class="text-xs font-medium text-slate-500">Sum of P<sub>90</sub>s</span>
+            <span id="stat-sum-p90" class="text-sm font-medium tabular-nums text-slate-900">—</span>
+          </div>
+          <div data-stat="sim-mode" class="inline-flex h-8 items-center gap-2 rounded-md bg-blue-50 px-2.5">
+            <span class="text-xs font-medium text-blue-700">Simulated mode</span>
+            <span id="stat-sim-mode" class="text-sm font-medium tabular-nums text-blue-800">—</span>
+          </div>
+          <div data-stat="sim-p90" class="inline-flex h-8 items-center gap-2 rounded-md bg-red-50 px-2.5">
+            <span class="text-xs font-medium text-red-700">Simulated P<sub>90</sub></span>
+            <span id="stat-sim-p90" class="text-sm font-medium tabular-nums text-red-800">—</span>
+          </div>
+        </div>
+        <div id="histogram-wrap" class="hidden h-80 px-4 pb-4">
+          <canvas id="histogram" class="h-full w-full"></canvas>
+        </div>
+      </section>
     </main>
 
     <script>
@@ -81,9 +139,22 @@
       const undoToastEl = document.getElementById("undo-toast");
       const undoMessageEl = document.getElementById("undo-message");
       const undoDeleteBtn = document.getElementById("undo-delete");
+      const resimulateBtn = document.getElementById("resimulate");
+      const runsSliderEl = document.getElementById("runs-slider");
+      const runsLabelEl = document.getElementById("runs-label");
+      const outputStatusEl = document.getElementById("output-status");
+      const outputStatsEl = document.getElementById("output-stats");
+      const statSumModeEl = document.getElementById("stat-sum-mode");
+      const statSumP90El = document.getElementById("stat-sum-p90");
+      const statSimModeEl = document.getElementById("stat-sim-mode");
+      const statSimP90El = document.getElementById("stat-sim-p90");
+      const histogramEl = document.getElementById("histogram");
+      const histogramWrapEl = document.getElementById("histogram-wrap");
 
       const MODE_HOURS = [1, 2, 3, 5, 8, 13];
       const P90_HOURS = [1, 2, 3, 5, 8, 13, 21];
+      const DEFAULT_RUNS = 10000;
+      const Z90 = 1.2815515655446004;
 
       const focusRing =
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900";
@@ -92,8 +163,10 @@
 
       let nextId = 1;
       let tasks = [];
+      let runs = DEFAULT_RUNS;
       let undo = null;
       let applyingHash = false;
+      let histogramChart = null;
 
       function bytesToBase64Url(bytes) {
         let binary = "";
@@ -140,37 +213,46 @@
         return { mode: nextMode, p90: nextP90 };
       }
 
+      function clampRuns(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return DEFAULT_RUNS;
+        const stepped = Math.round(n / 500) * 500;
+        return Math.min(10000, Math.max(500, stepped));
+      }
+
       function encodeState() {
         const json = JSON.stringify({
           v: 2,
+          r: runs,
           t: tasks.map((task) => [task.name, task.mode, task.p90]),
         });
         return bytesToBase64Url(new TextEncoder().encode(json));
       }
 
-      function decodeState(hash) {
+      function decodeDocument(hash) {
         const raw = hash.startsWith("#") ? hash.slice(1) : hash;
-        if (!raw) return [];
+        if (!raw) return { records: [], runs: DEFAULT_RUNS };
         try {
           const json = new TextDecoder().decode(base64UrlToBytes(raw));
           const data = JSON.parse(json);
           if (!Array.isArray(data.t)) return null;
+          let records = null;
           if (data.v === 1) {
-            return data.t.map((name) => ({
+            records = data.t.map((name) => ({
               name: String(name ?? ""),
               mode: null,
               p90: null,
             }));
-          }
-          if (data.v === 2) {
-            return data.t.map((item) => {
+          } else if (data.v === 2) {
+            records = data.t.map((item) => {
               const name = Array.isArray(item) ? item[0] : item?.n;
               const mode = Array.isArray(item) ? item[1] : item?.m;
               const p90 = Array.isArray(item) ? item[2] : item?.p;
               return { name: String(name ?? ""), ...normalizeEstimate(mode, p90) };
             });
           }
-          return null;
+          if (!records) return null;
+          return { records, runs: clampRuns(data.r) };
         } catch {
           return null;
         }
@@ -212,8 +294,16 @@
 
       function loadFromHash() {
         applyingHash = true;
-        const records = decodeState(location.hash);
-        applyTasks(records === null ? [] : records);
+        const doc = decodeDocument(location.hash);
+        if (doc === null) {
+          applyTasks([]);
+          runs = DEFAULT_RUNS;
+        } else {
+          applyTasks(doc.records);
+          runs = doc.runs;
+        }
+        runsSliderEl.value = String(runs);
+        runsLabelEl.textContent = runs.toLocaleString("en-US");
         applyingHash = false;
       }
 
@@ -302,6 +392,227 @@
       function focusAdd() {
         if (tasks.length === 0) emptyStateEl.focus();
         else addTaskBottomBtn.focus();
+      }
+
+      function classifyTasks() {
+        const incomplete = [];
+        const ready = [];
+        for (const task of tasks) {
+          const named = Boolean(task.name.trim());
+          const hasEstimate = task.mode != null || task.p90 != null;
+          if (!named && !hasEstimate) continue;
+          if (task.mode != null && task.p90 != null) ready.push(task);
+          else incomplete.push(task);
+        }
+        return { ready, incomplete };
+      }
+
+      function missingLabel(task) {
+        const name = task.name.trim() || "Untitled task";
+        const needMode = task.mode == null;
+        const needP90 = task.p90 == null;
+        if (needMode && needP90) return `${name} (Mode and P90)`;
+        if (needMode) return `${name} (Mode)`;
+        return `${name} (P90)`;
+      }
+
+      function fitLogNormal(mode, p90) {
+        if (!(mode > 0) || !(p90 > 0) || p90 < mode) return null;
+        if (p90 === mode) return { mu: Math.log(mode), sigma: 0 };
+        const logRatio = Math.log(p90 / mode);
+        const sigma = (-Z90 + Math.sqrt(Z90 * Z90 + 4 * logRatio)) / 2;
+        const mu = Math.log(mode) + sigma * sigma;
+        return { mu, sigma };
+      }
+
+      function randomNormal() {
+        let u = 0;
+        let v = 0;
+        while (u === 0) u = Math.random();
+        while (v === 0) v = Math.random();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+      }
+
+      function sampleLogNormal(mu, sigma) {
+        if (sigma === 0) return Math.exp(mu);
+        return Math.exp(mu + sigma * randomNormal());
+      }
+
+      function percentile(sorted, p) {
+        if (sorted.length === 0) return 0;
+        const index = (sorted.length - 1) * p;
+        const lo = Math.floor(index);
+        const hi = Math.ceil(index);
+        if (lo === hi) return sorted[lo];
+        return sorted[lo] * (hi - index) + sorted[hi] * (index - lo);
+      }
+
+      function binSamples(samples, binCount = 40, maxBound = null) {
+        const min = Math.min(...samples);
+        const sampleMax = Math.max(...samples);
+        const max = maxBound != null && maxBound > min ? maxBound : sampleMax;
+        const span = max - min || 1;
+        const width = span / binCount;
+        const counts = Array(binCount).fill(0);
+        const labels = [];
+        for (let i = 0; i < binCount; i++) {
+          labels.push(min + (i + 0.5) * width);
+        }
+        for (const value of samples) {
+          if (value >= max) continue;
+          let i = Math.floor((value - min) / width);
+          if (i >= binCount) i = binCount - 1;
+          if (i < 0) i = 0;
+          counts[i] += 1;
+        }
+        return { labels, counts, width, max };
+      }
+
+      function simulateTotals(readyTasks) {
+        const fits = readyTasks.map((task) => fitLogNormal(task.mode, task.p90));
+        if (fits.some((fit) => !fit)) return [];
+        const totals = [];
+        for (let i = 0; i < runs; i++) {
+          let sum = 0;
+          for (const fit of fits) sum += sampleLogNormal(fit.mu, fit.sigma);
+          totals.push(sum);
+        }
+        return totals;
+      }
+
+      function formatHours(value) {
+        const rounded = Math.round(value * 10) / 10;
+        return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)} h`;
+      }
+
+      function clearHistogram() {
+        if (histogramChart) {
+          histogramChart.destroy();
+          histogramChart = null;
+        }
+        histogramWrapEl.classList.add("hidden");
+        outputStatsEl.classList.add("hidden");
+        outputStatsEl.classList.remove("flex");
+      }
+
+      function drawHistogram(samples, readyTasks) {
+        if (typeof Chart === "undefined") {
+          outputStatusEl.textContent = "Chart.js failed to load.";
+          return;
+        }
+        const sorted = [...samples].sort((a, b) => a - b);
+        const p90 = percentile(sorted, 0.9);
+        const sumMode = readyTasks.reduce((sum, task) => sum + task.mode, 0);
+        const sumP90 = readyTasks.reduce((sum, task) => sum + task.p90, 0);
+        const { labels, counts, max: xMax } = binSamples(samples, 40, sumP90 * 1.2);
+        let modeIndex = 0;
+        for (let i = 1; i < counts.length; i++) {
+          if (counts[i] > counts[modeIndex]) modeIndex = i;
+        }
+        const mode = labels[modeIndex];
+        if (histogramChart) {
+          histogramChart.destroy();
+          histogramChart = null;
+        }
+        statSumModeEl.textContent = formatHours(sumMode);
+        statSumP90El.textContent = formatHours(sumP90);
+        statSimModeEl.textContent = formatHours(mode);
+        statSimP90El.textContent = formatHours(p90);
+        const chips = [
+          [sumMode, statSumModeEl.closest("[data-stat]")],
+          [sumP90, statSumP90El.closest("[data-stat]")],
+          [mode, statSimModeEl.closest("[data-stat]")],
+          [p90, statSimP90El.closest("[data-stat]")],
+        ];
+        chips.sort((a, b) => a[0] - b[0]);
+        for (const [, chip] of chips) outputStatsEl.append(chip);
+        outputStatsEl.classList.remove("hidden");
+        outputStatsEl.classList.add("flex");
+        outputStatusEl.textContent = `${runs.toLocaleString("en-US")} runs`;
+        histogramWrapEl.classList.remove("hidden");
+        histogramChart = new Chart(histogramEl, {
+          type: "bar",
+          data: {
+            datasets: [
+              {
+                data: labels.map((hour, i) => ({ x: hour, y: counts[i] })),
+                backgroundColor: "rgb(15 23 42 / 0.75)",
+                hoverBackgroundColor: "rgb(15 23 42 / 0.9)",
+                borderRadius: 2,
+                barPercentage: 1,
+                categoryPercentage: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            parsing: false,
+            plugins: {
+              legend: { display: false },
+              annotation: {
+                annotations: {
+                  modeLine: {
+                    type: "line",
+                    xMin: mode,
+                    xMax: mode,
+                    borderColor: "rgb(37 99 235)",
+                    borderWidth: 2,
+                    label: { display: true, content: "Mode", position: "start" },
+                  },
+                  p90Line: {
+                    type: "line",
+                    xMin: p90,
+                    xMax: p90,
+                    borderColor: "rgb(220 38 38)",
+                    borderWidth: 2,
+                    label: { display: true, content: "P90", position: "start" },
+                  },
+                },
+              },
+            },
+            scales: {
+              x: {
+                type: "linear",
+                max: xMax,
+                title: { display: true, text: "Hours" },
+                ticks: { maxTicksLimit: 12 },
+                grid: { display: false },
+              },
+              y: {
+                title: { display: true, text: "Runs" },
+                beginAtZero: true,
+                ticks: { precision: 0 },
+              },
+            },
+          },
+        });
+      }
+
+      function renderOutput() {
+        const { ready, incomplete } = classifyTasks();
+        const canSimulate = ready.length > 0 && incomplete.length === 0;
+        resimulateBtn.disabled = !canSimulate;
+
+        if (tasks.length === 0 || (ready.length === 0 && incomplete.length === 0)) {
+          outputStatusEl.textContent = "Add a task and set Mode and P90 to see a forecast.";
+          clearHistogram();
+          return;
+        }
+        if (incomplete.length > 0) {
+          outputStatusEl.textContent = `Finish estimates before simulating: ${incomplete.map(missingLabel).join("; ")}.`;
+          clearHistogram();
+          return;
+        }
+        drawHistogram(simulateTotals(ready), ready);
+      }
+
+      function setRuns(value, { simulate = false } = {}) {
+        runs = clampRuns(value);
+        runsSliderEl.value = String(runs);
+        runsLabelEl.textContent = runs.toLocaleString("en-US");
+        writeHash();
+        if (simulate) renderOutput();
       }
 
       function renderUndo() {
@@ -445,11 +756,15 @@
         }
 
         writeHash();
+        renderOutput();
       }
 
       addTaskBottomBtn.addEventListener("click", () => addTask());
       emptyStateEl.addEventListener("click", () => addTask());
       undoDeleteBtn.addEventListener("click", undoDelete);
+      resimulateBtn.addEventListener("click", () => renderOutput());
+      runsSliderEl.addEventListener("input", () => setRuns(runsSliderEl.value));
+      runsSliderEl.addEventListener("change", () => setRuns(runsSliderEl.value, { simulate: true }));
       document.querySelector("main").addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
         if (event.target === event.currentTarget) return;

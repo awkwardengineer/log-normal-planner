@@ -35,6 +35,8 @@ The Monte Carlo simulator then runs many simulations. In each run it samples a d
   - Layout: three bands — wide name field, Mode + P90 as one estimate band (equal column width, extra gap between groups), trash in its own action column. Headers use a real P<sub>90</sub> subscript.
 - [x] **URL state.** Encode task names, mode, and P90 into the URL (base64url hash, payload `v: 2`). Unset values are `null`. Older name-only hashes still load.
 - [x] **URL usage.** Show encoded payload size under the task list (`1,700 bytes`). Remaining headroom and a **2k** / **8k** warn target still TBD.
+- [x] **Output.** Monte Carlo histogram of total hours (Chart.js via CDN). Slider for run count (**500–10,000**, default **10,000**). **Re-simulate** draws a new sample. Hours in and out for now.
+  - Incomplete estimates: do not invent values. Ignore fully blank rows. If any real task is missing Mode or P₉₀, hide the chart, list what is missing, and disable Re-simulate.
 - **Time units.** Choose hours, days, or weeks for inputs and outputs. Underlying calculations convert everything to hours.
 - **Calendar / availability.** Account for weekends, holidays, vacation, and sick time. There are several ways to model this; details TBD — come back to it. Related: a **project start date** (until then, assume the plan starts today).
 - **Critical-chain planning (later).** Plan the schedule against the modal case, and treat the remaining time (e.g. to P90) as a buffer. Details TBD.
@@ -42,7 +44,7 @@ The Monte Carlo simulator then runs many simulations. In each run it samples a d
 
 ## Presentation Features
 
-- **Base view.** Show the histogram of simulated totals (mode and P90 lines as described above).
+- [x] **Base view.** Show the histogram of simulated totals (mode and P90 lines as described above). Hours on the axis for now.
 - **Calendar overlay.** If weekends and holidays are enabled, show those on the chart.
 - **Start date.** For now, assume the plan starts today. Later, capture a start date (see calendar / availability).
 - **Waterfall (later).** A “waterfall” plot: a series of histograms on the same chart (one per task / cumulative stage).
@@ -60,7 +62,7 @@ Single HTML file. Tailwind via CDN. No build step.
 1. [x] **Task list.** Add, delete, and name task rows. Done — interaction locked in `agent-prompt.md`.
 2. [x] **Encode / recover.** Persist the task list in the URL hash; reload or share the link and the same list comes back.
 3. [x] **Estimates.** Mode and P90 Fibonacci hour buttons on each task; persist selections in the hash. Start unset; the clicked chip is the source of truth for snaps.
-4. **Output graph.** Run the simulation and show the histogram (mode and P90 lines).
+4. [x] **Output graph.** Run the simulation and show the histogram (mode and P90 lines).
 
 Then come back and iterate: 2k / 8k remaining-budget meter, time units, calendar / start date, waterfall, critical-chain, actuals, and the rest.
 
