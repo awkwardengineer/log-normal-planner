@@ -12,7 +12,7 @@
     <main class="mx-auto max-w-7xl px-4 py-10">
       <header class="mb-8">
         <h1 class="text-2xl font-semibold tracking-tight">Log-Normal Planner</h1>
-        <p class="mt-1 text-sm text-slate-500">Add tasks, then pick a mode and P<sub>90</sub> in days.</p>
+        <p class="mt-1 text-sm text-slate-500">Add tasks, then pick a mode and P<sub>90</sub> in business days.</p>
       </header>
 
       <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -61,8 +61,14 @@
         >
           <span class="border-r border-slate-100 pr-6 text-sm font-medium text-slate-700">Tasks</span>
           <div class="flex gap-8">
-            <span class="w-[15.5rem]">Mode</span>
-            <span class="w-[15.5rem]">P<sub>90</sub></span>
+            <span class="w-[15.5rem]">
+              Mode
+              <span class="ml-1 font-normal text-slate-400">business days</span>
+            </span>
+            <span class="w-[15.5rem]">
+              P<sub>90</sub>
+              <span class="ml-1 font-normal text-slate-400">business days</span>
+            </span>
           </div>
           <span class="w-10 border-l border-slate-100 pl-3">
             <span class="sr-only">Actions</span>
@@ -135,29 +141,69 @@
         </div>
       </section>
 
+      <section id="summary-section" class="mt-4 hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-3">
+          <h2 class="text-sm font-medium text-slate-700">Summary</h2>
+        </div>
+        <div id="output-stats" class="flex flex-wrap gap-8 px-4 py-3">
+          <div>
+            <h3 class="text-sm font-medium text-slate-700">Your estimates</h3>
+            <p class="mt-0.5 text-xs text-slate-500">Business days</p>
+            <div class="mt-2 flex flex-col items-start gap-2">
+              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
+                <span class="text-xs font-medium text-slate-500">Sum of modes</span>
+                <span id="stat-sum-mode" class="text-sm font-medium tabular-nums text-slate-900">—</span>
+              </div>
+              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
+                <span class="text-xs font-medium text-slate-500">Sum of P<sub>90</sub>s</span>
+                <span id="stat-sum-p90" class="text-sm font-medium tabular-nums text-slate-900">—</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-sm font-medium text-slate-700">Simulation</h3>
+            <p class="mt-0.5 text-xs text-slate-500">Business days</p>
+            <div class="mt-2 flex flex-col items-start gap-2">
+              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-blue-50 px-2.5">
+                <span class="text-xs font-medium text-blue-700">Median</span>
+                <span id="stat-sim-median" class="text-sm font-medium tabular-nums text-blue-800">—</span>
+              </div>
+              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-amber-50 px-2.5">
+                <span class="text-xs font-medium text-amber-800">P<sub>70</sub></span>
+                <span id="stat-sim-p70" class="text-sm font-medium tabular-nums text-amber-900">—</span>
+              </div>
+              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-red-50 px-2.5">
+                <span class="text-xs font-medium text-red-700">P<sub>90</sub></span>
+                <span id="stat-sim-p90" class="text-sm font-medium tabular-nums text-red-800">—</span>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-sm font-medium text-slate-700">Finishes on</h3>
+            <p class="mt-0.5 text-xs text-slate-500">Calendar date</p>
+            <div class="mt-2 flex flex-col items-start gap-2">
+              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-blue-50 px-2.5">
+                <span class="text-xs font-medium text-blue-700">Median</span>
+                <span id="stat-median-date" class="text-sm font-medium text-blue-800">—</span>
+              </div>
+              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-amber-50 px-2.5">
+                <span class="text-xs font-medium text-amber-800">P<sub>70</sub></span>
+                <span id="stat-p70-date" class="text-sm font-medium text-amber-900">—</span>
+              </div>
+              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-red-50 px-2.5">
+                <span class="text-xs font-medium text-red-700">P<sub>90</sub></span>
+                <span id="stat-p90-date" class="text-sm font-medium text-red-800">—</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-100 px-4 py-3">
           <h2 class="text-sm font-medium text-slate-700">Graph</h2>
         </div>
         <p id="output-status" class="px-4 pt-4 text-sm text-slate-500"></p>
-        <div id="output-stats" class="hidden flex flex-wrap gap-2 px-4 pt-3">
-          <div data-stat="sum-mode" class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
-            <span class="text-xs font-medium text-slate-500">Sum of modes</span>
-            <span id="stat-sum-mode" class="text-sm font-medium tabular-nums text-slate-900">—</span>
-          </div>
-          <div data-stat="sum-p90" class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
-            <span class="text-xs font-medium text-slate-500">Sum of P<sub>90</sub>s</span>
-            <span id="stat-sum-p90" class="text-sm font-medium tabular-nums text-slate-900">—</span>
-          </div>
-          <div data-stat="sim-mode" class="inline-flex h-8 items-center gap-2 rounded-md bg-blue-50 px-2.5">
-            <span class="text-xs font-medium text-blue-700">Simulated mode</span>
-            <span id="stat-sim-mode" class="text-sm font-medium tabular-nums text-blue-800">—</span>
-          </div>
-          <div data-stat="sim-p90" class="inline-flex h-8 items-center gap-2 rounded-md bg-red-50 px-2.5">
-            <span class="text-xs font-medium text-red-700">Simulated P<sub>90</sub></span>
-            <span id="stat-sim-p90" class="text-sm font-medium tabular-nums text-red-800">—</span>
-          </div>
-        </div>
         <div id="histogram-wrap" class="hidden h-80 px-4 pb-4">
           <canvas id="histogram" class="h-full w-full"></canvas>
         </div>
@@ -168,7 +214,7 @@
           <h2 class="text-sm font-medium text-slate-700">Waterfall</h2>
         </div>
         <p class="px-4 pt-3 text-sm text-slate-500">
-          Calendar date each task finishes, if they run in list order.
+          Calendar date each task finishes, if they run in list order. The axis is elapsed calendar days, not business days.
         </p>
         <div id="waterfall-wrap" class="px-4 pb-4">
           <div
@@ -197,11 +243,15 @@
       const runsSliderEl = document.getElementById("runs-slider");
       const runsLabelEl = document.getElementById("runs-label");
       const outputStatusEl = document.getElementById("output-status");
-      const outputStatsEl = document.getElementById("output-stats");
+      const summarySectionEl = document.getElementById("summary-section");
       const statSumModeEl = document.getElementById("stat-sum-mode");
       const statSumP90El = document.getElementById("stat-sum-p90");
-      const statSimModeEl = document.getElementById("stat-sim-mode");
+      const statSimMedianEl = document.getElementById("stat-sim-median");
+      const statSimP70El = document.getElementById("stat-sim-p70");
       const statSimP90El = document.getElementById("stat-sim-p90");
+      const statMedianDateEl = document.getElementById("stat-median-date");
+      const statP70DateEl = document.getElementById("stat-p70-date");
+      const statP90DateEl = document.getElementById("stat-p90-date");
       const histogramEl = document.getElementById("histogram");
       const histogramWrapEl = document.getElementById("histogram-wrap");
       const waterfallSectionEl = document.getElementById("waterfall-section");
@@ -421,14 +471,15 @@
       }
 
       function formatAxisDate(date) {
-        const origin = parseISODate(startDate);
-        const options = { month: "short", day: "numeric" };
-        if (!origin || date.getFullYear() !== origin.getFullYear()) options.year = "2-digit";
-        return date.toLocaleDateString("en-US", options);
+        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      }
+
+      function formatChipDate(date) {
+        return formatAxisDate(date);
       }
 
       function formatCalendarPoint(elapsed) {
-        return `${formatDays(elapsed)} · ${formatAxisDate(dateForElapsedDays(startDate, elapsed))}`;
+        return `${formatDayCount(elapsed)} calendar days · ${formatAxisDate(dateForElapsedDays(startDate, elapsed))}`;
       }
 
       function dayDateScales(xMin, xMax) {
@@ -800,9 +851,101 @@
         return { totals, finishByTask };
       }
 
-      function formatDays(value) {
+      function formatDayCount(value) {
         const rounded = Math.round(value * 10) / 10;
-        return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)} d`;
+        return rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1);
+      }
+
+      function placeCalloutLabels(items, xMin, xMax) {
+        const rawWidth =
+          histogramEl.clientWidth ||
+          histogramWrapEl.clientWidth ||
+          histogramWrapEl.parentElement?.clientWidth ||
+          640;
+        const chartWidth = Math.max(rawWidth - 48, 160);
+        const pxPerUnit = chartWidth / Math.max(xMax - xMin, 1);
+        const rowHeight = 26;
+        const gapPx = 8;
+        const laid = items
+          .map((item, index) => {
+            const widthPx = item.content.length * 6.6 + 14;
+            return {
+              index,
+              x: item.x,
+              widthPx,
+              heightPx: 22,
+              halfW: widthPx / 2,
+            };
+          })
+          .sort((a, b) => a.x - b.x || a.index - b.index);
+
+        function rect(item, xAdj, yAdj) {
+          return {
+            left: item.x + (xAdj - item.halfW) / pxPerUnit,
+            right: item.x + (xAdj + item.halfW) / pxPerUnit,
+            top: yAdj,
+            bottom: yAdj + item.heightPx,
+          };
+        }
+
+        function overlaps(a, b) {
+          return (
+            a.left < b.right + gapPx / pxPerUnit &&
+            a.right > b.left - gapPx / pxPerUnit &&
+            a.top < b.bottom + 6 &&
+            b.top < a.bottom + 6
+          );
+        }
+
+        const placed = [];
+        for (const cur of laid) {
+          const side = cur.halfW + 14;
+          const candidates = [];
+          for (let row = 0; row < 5; row++) {
+            const y = -8 + row * rowHeight;
+            candidates.push({ xAdjust: side, yAdjust: y });
+            candidates.push({ xAdjust: -side, yAdjust: y });
+          }
+          const chosen =
+            candidates.find((cand) => {
+              const box = rect(cur, cand.xAdjust, cand.yAdjust);
+              return !placed.some((prev) => overlaps(box, prev.rect));
+            }) || candidates[0];
+          cur.xAdjust = chosen.xAdjust;
+          cur.yAdjust = chosen.yAdjust;
+          cur.rect = rect(cur, chosen.xAdjust, chosen.yAdjust);
+          placed.push(cur);
+        }
+        return items.map((_, index) => {
+          const item = laid.find((el) => el.index === index);
+          return { xAdjust: item.xAdjust, yAdjust: item.yAdjust };
+        });
+      }
+
+      function percentileCallout(color, content, x, y, xAdjust, yAdjust) {
+        return {
+          type: "label",
+          clip: false,
+          xValue: x,
+          yValue: y,
+          xAdjust,
+          yAdjust,
+          content,
+          color,
+          backgroundColor: "rgb(255 255 255 / 0.94)",
+          borderColor: color,
+          borderWidth: 1,
+          borderRadius: 4,
+          font: { size: 11 },
+          padding: { x: 6, y: 3 },
+          callout: {
+            display: true,
+            borderColor: color,
+            borderWidth: 1,
+            margin: 3,
+            side: 5,
+          },
+        };
       }
 
       function clearHistogram() {
@@ -815,45 +958,64 @@
         waterfallRowsEl.replaceChildren();
         histogramWrapEl.classList.add("hidden");
         waterfallSectionEl.classList.add("hidden");
-        outputStatsEl.classList.add("hidden");
-        outputStatsEl.classList.remove("flex");
+        summarySectionEl.classList.add("hidden");
       }
 
-      function drawHistogram(samples, readyTasks, xMax) {
+      function drawHistogram(calendarSamples, effortSamples, readyTasks, xMax) {
         if (typeof Chart === "undefined") {
           outputStatusEl.textContent = "Chart.js failed to load.";
           return;
         }
-        const sorted = [...samples].sort((a, b) => a - b);
-        const p90 = percentile(sorted, 0.9);
+        const sortedEffort = [...effortSamples].sort((a, b) => a - b);
+        const median = percentile(sortedEffort, 0.5);
+        const p70 = percentile(sortedEffort, 0.7);
+        const p90 = percentile(sortedEffort, 0.9);
+        const medianCal = workingDaysToCalendarElapsed(startDate, median);
+        const p70Cal = workingDaysToCalendarElapsed(startDate, p70);
+        const p90Cal = workingDaysToCalendarElapsed(startDate, p90);
         const sumMode = readyTasks.reduce((sum, task) => sum + task.mode, 0);
         const sumP90 = readyTasks.reduce((sum, task) => sum + task.p90, 0);
-        const { labels, counts, min: xMin } = binElapsedDays(samples, xMax);
-        let modeIndex = 0;
-        for (let i = 1; i < counts.length; i++) {
-          if (counts[i] > counts[modeIndex]) modeIndex = i;
-        }
-        const mode = labels[modeIndex];
+        const { labels, counts, min: xMin } = binElapsedDays(calendarSamples, xMax);
+        const medianLabel = `Median · ${formatAxisDate(dateForWorkingDays(startDate, median))}`;
+        const p70Label = `P70 · ${formatAxisDate(dateForWorkingDays(startDate, p70))}`;
+        const p90Label = `P90 · ${formatAxisDate(dateForWorkingDays(startDate, p90))}`;
         if (histogramChart) {
           histogramChart.destroy();
           histogramChart = null;
         }
-        statSumModeEl.textContent = formatDays(sumMode);
-        statSumP90El.textContent = formatDays(sumP90);
-        statSimModeEl.textContent = formatDays(mode);
-        statSimP90El.textContent = formatDays(p90);
-        const chips = [
-          [sumMode, statSumModeEl.closest("[data-stat]")],
-          [sumP90, statSumP90El.closest("[data-stat]")],
-          [mode, statSimModeEl.closest("[data-stat]")],
-          [p90, statSimP90El.closest("[data-stat]")],
-        ];
-        chips.sort((a, b) => a[0] - b[0]);
-        for (const [, chip] of chips) outputStatsEl.append(chip);
-        outputStatsEl.classList.remove("hidden");
-        outputStatsEl.classList.add("flex");
+        statSumModeEl.textContent = formatDayCount(sumMode);
+        statSumP90El.textContent = formatDayCount(sumP90);
+        statSimMedianEl.textContent = formatDayCount(median);
+        statSimP70El.textContent = formatDayCount(p70);
+        statSimP90El.textContent = formatDayCount(p90);
+        statMedianDateEl.textContent = formatChipDate(dateForWorkingDays(startDate, median));
+        statP70DateEl.textContent = formatChipDate(dateForWorkingDays(startDate, p70));
+        statP90DateEl.textContent = formatChipDate(dateForWorkingDays(startDate, p90));
+        summarySectionEl.classList.remove("hidden");
         outputStatusEl.textContent = `${runs.toLocaleString("en-US")} runs`;
         histogramWrapEl.classList.remove("hidden");
+        const yPeak = Math.max(...counts, 1);
+        const yAt = (day) => {
+          let best = 0;
+          let bestDist = Infinity;
+          for (let i = 0; i < labels.length; i++) {
+            const dist = Math.abs(labels[i] - day);
+            if (dist < bestDist) {
+              bestDist = dist;
+              best = counts[i];
+            }
+          }
+          return best > 0 ? best : yPeak * 0.85;
+        };
+        const [medianPlace, p70Place, p90Place] = placeCalloutLabels(
+          [
+            { x: medianCal, content: medianLabel },
+            { x: p70Cal, content: p70Label },
+            { x: p90Cal, content: p90Label },
+          ],
+          xMin,
+          xMax
+        );
         histogramChart = new Chart(histogramEl, {
           type: "bar",
           data: {
@@ -884,7 +1046,7 @@
             responsive: true,
             maintainAspectRatio: false,
             parsing: false,
-            layout: { padding: { top: 4 } },
+            layout: { padding: { top: 16 } },
             plugins: {
               legend: { display: false },
               tooltip: {
@@ -903,23 +1065,56 @@
                 },
               },
               annotation: {
+                clip: false,
                 annotations: {
-                  modeLine: {
+                  medianLine: {
                     type: "line",
-                    xMin: mode,
-                    xMax: mode,
+                    clip: false,
+                    xMin: medianCal,
+                    xMax: medianCal,
                     borderColor: "rgb(37 99 235)",
                     borderWidth: 2,
-                    label: { display: true, content: "Mode", position: "start" },
+                  },
+                  p70Line: {
+                    type: "line",
+                    clip: false,
+                    xMin: p70Cal,
+                    xMax: p70Cal,
+                    borderColor: "rgb(217 119 6)",
+                    borderWidth: 2,
                   },
                   p90Line: {
                     type: "line",
-                    xMin: p90,
-                    xMax: p90,
+                    clip: false,
+                    xMin: p90Cal,
+                    xMax: p90Cal,
                     borderColor: "rgb(220 38 38)",
                     borderWidth: 2,
-                    label: { display: true, content: "P90", position: "start" },
                   },
+                  medianLabel: percentileCallout(
+                    "rgb(37 99 235)",
+                    medianLabel,
+                    medianCal,
+                    yAt(medianCal),
+                    medianPlace.xAdjust,
+                    medianPlace.yAdjust
+                  ),
+                  p70Label: percentileCallout(
+                    "rgb(217 119 6)",
+                    p70Label,
+                    p70Cal,
+                    yAt(p70Cal),
+                    p70Place.xAdjust,
+                    p70Place.yAdjust
+                  ),
+                  p90Label: percentileCallout(
+                    "rgb(220 38 38)",
+                    p90Label,
+                    p90Cal,
+                    yAt(p90Cal),
+                    p90Place.xAdjust,
+                    p90Place.yAdjust
+                  ),
                 },
               },
             },
@@ -1048,7 +1243,7 @@
         const effortCap = ready.reduce((sum, task) => sum + task.p90, 0) * 1.2;
         const xMax = Math.max(1, workingDaysToCalendarElapsed(startDate, effortCap));
         const toElapsed = (hours) => workingDaysToCalendarElapsed(startDate, hoursToDays(hours));
-        drawHistogram(totals.map(toElapsed), ready, xMax);
+        drawHistogram(totals.map(toElapsed), totals.map(hoursToDays), ready, xMax);
         drawWaterfall(
           finishByTask.map((samples) => samples.map(toElapsed)),
           ready,
