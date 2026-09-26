@@ -20,14 +20,15 @@
 
         <ul id="task-list" class="divide-y divide-slate-100"></ul>
 
-        <div id="add-task-footer" class="hidden border-t border-slate-100 px-4 py-3">
+        <div id="add-task-footer" class="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3">
           <button
             id="add-task-bottom"
             type="button"
-            class="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            class="hidden rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             Add task
           </button>
+          <p id="usage" class="ml-auto text-sm tabular-nums text-slate-500">0 bytes</p>
         </div>
 
         <button
@@ -59,8 +60,8 @@
     <script>
       const taskListEl = document.getElementById("task-list");
       const emptyStateEl = document.getElementById("empty-state");
-      const addTaskFooterEl = document.getElementById("add-task-footer");
       const addTaskBottomBtn = document.getElementById("add-task-bottom");
+      const usageEl = document.getElementById("usage");
       const undoToastEl = document.getElementById("undo-toast");
       const undoMessageEl = document.getElementById("undo-message");
       const undoDeleteBtn = document.getElementById("undo-delete");
@@ -71,6 +72,74 @@
       let nextId = 1;
       let tasks = [];
       let undo = null;
+      let applyingHash = false;
+
+      function bytesToBase64Url(bytes) {
+        let binary = "";
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      }
+
+      function base64UrlToBytes(value) {
+        const padded = value.replace(/-/g, "+").replace(/_/g, "/");
+        const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
+        const binary = atob(padded + pad);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+      }
+
+      function encodeState() {
+        const json = JSON.stringify({ v: 1, t: tasks.map((task) => task.name) });
+        return bytesToBase64Url(new TextEncoder().encode(json));
+      }
+
+      function decodeState(hash) {
+        const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+        if (!raw) return [];
+        try {
+          const json = new TextDecoder().decode(base64UrlToBytes(raw));
+          const data = JSON.parse(json);
+          if (data.v !== 1 || !Array.isArray(data.t)) return null;
+          return data.t.map((name) => String(name ?? ""));
+        } catch {
+          return null;
+        }
+      }
+
+      function encodedBytes() {
+        if (tasks.length === 0) return 0;
+        return encodeState().length;
+      }
+
+      function renderUsage() {
+        usageEl.textContent = `${encodedBytes().toLocaleString("en-US")} bytes`;
+      }
+
+      function writeHash() {
+        if (applyingHash) return;
+        const encoded = tasks.length === 0 ? "" : encodeState();
+        const next = encoded ? `#${encoded}` : location.pathname + location.search;
+        const current = encoded ? `${location.pathname}${location.search}#${encoded}` : `${location.pathname}${location.search}`;
+        if (location.pathname + location.search + location.hash === current) {
+          renderUsage();
+          return;
+        }
+        history.replaceState(null, "", next);
+        renderUsage();
+      }
+
+      function applyNames(names) {
+        tasks = names.map((name, index) => ({ id: index + 1, name }));
+        nextId = tasks.length + 1;
+      }
+
+      function loadFromHash() {
+        applyingHash = true;
+        const names = decodeState(location.hash);
+        applyNames(names === null ? [] : names);
+        applyingHash = false;
+      }
 
       function taskIndex(id) {
         return tasks.findIndex((task) => task.id === id);
@@ -117,6 +186,7 @@
       function renameTask(id, name) {
         const task = tasks.find((t) => t.id === id);
         if (task) task.name = name;
+        writeHash();
       }
 
       function focusAdd() {
@@ -139,7 +209,7 @@
         taskListEl.replaceChildren();
         const hasTasks = tasks.length > 0;
         emptyStateEl.classList.toggle("hidden", hasTasks);
-        addTaskFooterEl.classList.toggle("hidden", !hasTasks);
+        addTaskBottomBtn.classList.toggle("hidden", !hasTasks);
 
         for (const task of tasks) {
           const li = document.createElement("li");
@@ -197,6 +267,8 @@
         } else if (shouldFocusAdd) {
           focusAdd();
         }
+
+        writeHash();
       }
 
       addTaskBottomBtn.addEventListener("click", () => addTask());
@@ -208,6 +280,11 @@
         event.preventDefault();
         event.target.blur();
       });
+      window.addEventListener("hashchange", () => {
+        loadFromHash();
+        render();
+      });
+      loadFromHash();
       render();
     </script>
   </body>
