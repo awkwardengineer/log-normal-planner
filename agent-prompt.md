@@ -1,20 +1,26 @@
 # Agent prompt — rebuild the task list
 
-You are rebuilding **Log-Normal Planner**, a single-file HTML app. Product intent lives in `PLAN.md`. This file is the record of **what has actually been built** (project-plan step 1: the task list) so you can recreate `index.html` from scratch without inventing a different UI.
+You are rebuilding **Log-Normal Planner** from scratch. This prompt is the only spec you need. Recreate `index.html` to match what is specified here. Do not invent a different UI. Do not add a toolchain, framework, or extra source files.
 
-Do **not** implement later plan items (URL hash, estimates, Monte Carlo, chart) unless asked. Do **not** add a toolchain, framework, or extra files.
+## Product
 
-## Product (from PLAN.md)
+A single-file project planner that will use **log-normal Monte Carlo** simulation to estimate timelines from uncertain task estimates.
 
-A planner that will eventually take per-task **likely** (log-normal mode) and **P90** estimates, run a Monte Carlo (sample each task, **sum** durations), and histogram the totals with mode and P90 lines. State will live in a **base64url hash**. One HTML file; Tailwind via CDN; vanilla JS in the page.
+Someone loads one HTML file. They add tasks one by one. Later, each task will have a **likely case** and a **P90** estimate (sliders). The likely case is the **mode** of a log-normal. The simulator will sample a duration for every task, **add those times together**, and draw a histogram of the totals with vertical lines for the **mode** and **P90**.
 
-Today, only the **named task list** exists. Estimates come next.
+Project state will eventually live in a **base64url** string in the URL **hash** (not the query string) so a plan can be bookmarked and shared. Encoding: `JSON.stringify` → UTF-8 (`TextEncoder`) → base64url (`btoa`, then `+`/`/` → `-`/`_`, strip `=`). Reverse with `atob` + `TextDecoder`. No encoding library. The hash is still part of the full URL, so browsers and chat apps still limit length (rough warn targets: 2k conservative, 8k modern Chrome/Firefox).
+
+Other later work (do not build now): URL budget meter (2k vs 8k); time units (hours / days / weeks, calculate in hours); weekends, holidays, vacation, sick time, and a start date (assume today until that exists); Chart.js via CDN for the histogram, maybe straight SVG + rough.js later; calendar overlay on the chart; a waterfall of histograms; critical-chain (schedule to the mode, leftover time as buffer); recording actuals.
+
+## This slice only
+
+Build the **named task list**. Estimates, hash persistence, simulation, and the chart come after. Today, only add / name / delete tasks, with the interaction and visuals below.
 
 ## Constraints
 
-- Single file: `index.html`. Markup, Tailwind classes, and all JS in that file.
-- No build, no bundler, no Svelte/React/Vue, no TypeScript compile.
-- Tailwind from `https://cdn.tailwindcss.com`.
+- Single file: `index.html`. Markup, styles, and all application JavaScript in that file.
+- No build, no bundler, no Svelte/React/Vue, no TypeScript compile. Vanilla JS in `<script>` tags.
+- Tailwind from `https://cdn.tailwindcss.com`. Custom CSS in the same file is fine if needed.
 - Open the file (or a static server) in a browser; it works.
 
 ## What to ship
@@ -119,4 +125,4 @@ Known follow-ups **not** in the current app (do not implement unless asked):
 - Escape blurs.
 - One primary Add, bottom-left of the card, only when there are tasks.
 
-Rebuild `index.html` to satisfy this. Read `PLAN.md` for where this slice sits in the larger project; do not jump ahead.
+Rebuild `index.html` to satisfy this prompt. Do not jump ahead of this slice.
