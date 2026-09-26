@@ -7,15 +7,29 @@
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body class="min-h-screen bg-slate-50 text-slate-900">
-    <main class="mx-auto max-w-2xl px-4 py-10">
+    <main class="mx-auto max-w-7xl px-4 py-10">
       <header class="mb-8">
         <h1 class="text-2xl font-semibold tracking-tight">Log-Normal Planner</h1>
-        <p class="mt-1 text-sm text-slate-500">Add tasks, then name them. Estimates come next.</p>
+        <p class="mt-1 text-sm text-slate-500">Add tasks, then pick a mode and P<sub>90</sub> in hours.</p>
       </header>
 
       <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-100 px-4 py-3">
+        <div id="tasks-heading" class="border-b border-slate-100 px-4 py-3">
           <h2 class="text-sm font-medium text-slate-700">Tasks</h2>
+        </div>
+
+        <div
+          id="column-headers"
+          class="hidden grid items-center gap-x-8 border-b border-slate-100 px-4 py-2 text-xs font-medium text-slate-500 [grid-template-columns:minmax(28rem,1fr)_auto_auto]"
+        >
+          <span class="border-r border-slate-100 pr-6 text-sm font-medium text-slate-700">Tasks</span>
+          <div class="flex gap-8">
+            <span class="w-[15.5rem]">Mode</span>
+            <span class="w-[15.5rem]">P<sub>90</sub></span>
+          </div>
+          <span class="w-10 border-l border-slate-100 pl-3">
+            <span class="sr-only">Actions</span>
+          </span>
         </div>
 
         <ul id="task-list" class="divide-y divide-slate-100"></ul>
@@ -59,6 +73,8 @@
 
     <script>
       const taskListEl = document.getElementById("task-list");
+      const tasksHeadingEl = document.getElementById("tasks-heading");
+      const columnHeadersEl = document.getElementById("column-headers");
       const emptyStateEl = document.getElementById("empty-state");
       const addTaskBottomBtn = document.getElementById("add-task-bottom");
       const usageEl = document.getElementById("usage");
@@ -66,8 +82,13 @@
       const undoMessageEl = document.getElementById("undo-message");
       const undoDeleteBtn = document.getElementById("undo-delete");
 
+      const MODE_HOURS = [1, 2, 3, 5, 8, 13];
+      const P90_HOURS = [1, 2, 3, 5, 8, 13, 21];
+
       const focusRing =
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900";
+      const focusRingOnDark =
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white";
 
       let nextId = 1;
       let tasks = [];
@@ -89,8 +110,41 @@
         return bytes;
       }
 
+      function nearestHour(value, series) {
+        const n = Number(value);
+        if (series.includes(n)) return n;
+        return series.reduce((best, hour) =>
+          Math.abs(hour - n) < Math.abs(best - n) ? hour : best,
+        );
+      }
+
+      function largestAtMost(value, series) {
+        const allowed = series.filter((hour) => hour <= value);
+        return allowed.length ? allowed[allowed.length - 1] : series[0];
+      }
+
+      function parseHour(value, series) {
+        if (value == null || value === "") return null;
+        const n = Number(value);
+        if (!Number.isFinite(n)) return null;
+        return nearestHour(n, series);
+      }
+
+      function normalizeEstimate(mode, p90) {
+        let nextMode = parseHour(mode, MODE_HOURS);
+        let nextP90 = parseHour(p90, P90_HOURS);
+        if (nextMode != null && nextP90 != null) {
+          if (nextMode > nextP90) nextP90 = nearestHour(nextMode, P90_HOURS);
+          if (nextP90 < nextMode) nextMode = largestAtMost(nextP90, MODE_HOURS);
+        }
+        return { mode: nextMode, p90: nextP90 };
+      }
+
       function encodeState() {
-        const json = JSON.stringify({ v: 1, t: tasks.map((task) => task.name) });
+        const json = JSON.stringify({
+          v: 2,
+          t: tasks.map((task) => [task.name, task.mode, task.p90]),
+        });
         return bytesToBase64Url(new TextEncoder().encode(json));
       }
 
@@ -100,8 +154,23 @@
         try {
           const json = new TextDecoder().decode(base64UrlToBytes(raw));
           const data = JSON.parse(json);
-          if (data.v !== 1 || !Array.isArray(data.t)) return null;
-          return data.t.map((name) => String(name ?? ""));
+          if (!Array.isArray(data.t)) return null;
+          if (data.v === 1) {
+            return data.t.map((name) => ({
+              name: String(name ?? ""),
+              mode: null,
+              p90: null,
+            }));
+          }
+          if (data.v === 2) {
+            return data.t.map((item) => {
+              const name = Array.isArray(item) ? item[0] : item?.n;
+              const mode = Array.isArray(item) ? item[1] : item?.m;
+              const p90 = Array.isArray(item) ? item[2] : item?.p;
+              return { name: String(name ?? ""), ...normalizeEstimate(mode, p90) };
+            });
+          }
+          return null;
         } catch {
           return null;
         }
@@ -120,7 +189,9 @@
         if (applyingHash) return;
         const encoded = tasks.length === 0 ? "" : encodeState();
         const next = encoded ? `#${encoded}` : location.pathname + location.search;
-        const current = encoded ? `${location.pathname}${location.search}#${encoded}` : `${location.pathname}${location.search}`;
+        const current = encoded
+          ? `${location.pathname}${location.search}#${encoded}`
+          : `${location.pathname}${location.search}`;
         if (location.pathname + location.search + location.hash === current) {
           renderUsage();
           return;
@@ -129,16 +200,25 @@
         renderUsage();
       }
 
-      function applyNames(names) {
-        tasks = names.map((name, index) => ({ id: index + 1, name }));
+      function applyTasks(records) {
+        tasks = records.map((record, index) => ({
+          id: index + 1,
+          name: record.name,
+          mode: record.mode,
+          p90: record.p90,
+        }));
         nextId = tasks.length + 1;
       }
 
       function loadFromHash() {
         applyingHash = true;
-        const names = decodeState(location.hash);
-        applyNames(names === null ? [] : names);
+        const records = decodeState(location.hash);
+        applyTasks(records === null ? [] : records);
         applyingHash = false;
+      }
+
+      function createTask(name = "") {
+        return { id: nextId++, name, mode: null, p90: null };
       }
 
       function taskIndex(id) {
@@ -146,7 +226,7 @@
       }
 
       function addTask(afterId = null) {
-        const task = { id: nextId++, name: "" };
+        const task = createTask();
         const index = afterId == null ? tasks.length - 1 : taskIndex(afterId);
         tasks.splice(index + 1, 0, task);
         render({ focusTaskId: task.id });
@@ -189,6 +269,36 @@
         writeHash();
       }
 
+      function setMode(id, hours) {
+        const task = tasks.find((t) => t.id === id);
+        if (!task) return;
+        if (task.mode === hours) {
+          task.mode = null;
+          render();
+          return;
+        }
+        task.mode = parseHour(hours, MODE_HOURS);
+        if (task.mode != null && task.p90 != null && task.mode > task.p90) {
+          task.p90 = nearestHour(task.mode, P90_HOURS);
+        }
+        render();
+      }
+
+      function setP90(id, hours) {
+        const task = tasks.find((t) => t.id === id);
+        if (!task) return;
+        if (task.p90 === hours) {
+          task.p90 = null;
+          render();
+          return;
+        }
+        task.p90 = parseHour(hours, P90_HOURS);
+        if (task.mode != null && task.p90 != null && task.p90 < task.mode) {
+          task.mode = largestAtMost(task.p90, MODE_HOURS);
+        }
+        render();
+      }
+
       function focusAdd() {
         if (tasks.length === 0) emptyStateEl.focus();
         else addTaskBottomBtn.focus();
@@ -204,24 +314,80 @@
         }
       }
 
+      function trashIcon() {
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "1.75");
+        svg.setAttribute("stroke-linecap", "round");
+        svg.setAttribute("stroke-linejoin", "round");
+        svg.setAttribute("aria-hidden", "true");
+        svg.classList.add("h-4", "w-4");
+        svg.innerHTML =
+          '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>';
+        return svg;
+      }
+
+      function fibGroup(task, kind) {
+        const hours = kind === "mode" ? MODE_HOURS : P90_HOURS;
+        const selected = kind === "mode" ? task.mode : task.p90;
+        const title = kind === "mode" ? "Mode" : "P90";
+        const isSet = selected != null;
+        const row = document.createElement("div");
+        row.className = "flex w-[15.5rem] gap-1";
+        row.setAttribute("role", "group");
+        row.setAttribute(
+          "aria-label",
+          `${title} for ${task.name.trim() || "untitled task"}`,
+        );
+
+        for (const hour of hours) {
+          const pressed = hour === selected;
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.tabIndex = -1;
+          btn.textContent = String(hour);
+          btn.setAttribute("aria-pressed", String(pressed));
+          btn.className = pressed
+            ? `inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-slate-900 px-1.5 text-sm font-medium text-white ${focusRingOnDark}`
+            : isSet
+              ? `inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-transparent px-1.5 text-sm font-medium text-slate-300 hover:bg-slate-100 hover:text-slate-700 ${focusRing}`
+              : `inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-slate-100 px-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200 ${focusRing}`;
+          btn.addEventListener("click", () => {
+            if (kind === "mode") setMode(task.id, hour);
+            else setP90(task.id, hour);
+          });
+          row.append(btn);
+        }
+
+        return row;
+      }
+
       function render(options = {}) {
         const { focusTaskId = null, focusAdd: shouldFocusAdd = false } = options;
         taskListEl.replaceChildren();
         const hasTasks = tasks.length > 0;
         emptyStateEl.classList.toggle("hidden", hasTasks);
+        tasksHeadingEl.classList.toggle("hidden", hasTasks);
+        columnHeadersEl.classList.toggle("hidden", !hasTasks);
         addTaskBottomBtn.classList.toggle("hidden", !hasTasks);
 
         for (const task of tasks) {
           const li = document.createElement("li");
           li.dataset.taskId = String(task.id);
-          li.className = "flex items-center gap-3 px-4 py-2";
+          li.className =
+            "grid items-center gap-x-8 px-4 py-3 [grid-template-columns:minmax(28rem,1fr)_auto_auto]";
+
+          const nameWrap = document.createElement("div");
+          nameWrap.className = "min-w-0 border-r border-slate-100 pr-6";
 
           const input = document.createElement("input");
           input.type = "text";
           input.value = task.name;
           input.placeholder = "Task name";
           input.autocomplete = "off";
-          input.className = `min-w-0 flex-1 rounded-md border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-slate-400 ${focusRing}`;
+          input.className = `w-full min-w-0 rounded-md border border-slate-200 px-3 py-1.5 text-sm outline-none focus:border-slate-400 ${focusRing}`;
           input.addEventListener("input", (event) => {
             renameTask(task.id, event.target.value);
           });
@@ -247,15 +413,25 @@
             }
           });
 
+          nameWrap.append(input);
+
+          const estimates = document.createElement("div");
+          estimates.className = "flex gap-8";
+          estimates.append(fibGroup(task, "mode"), fibGroup(task, "p90"));
+
           const label = task.name.trim() ? `Delete ${task.name}` : "Delete untitled task";
+          const actions = document.createElement("div");
+          actions.className = "flex w-10 items-center justify-center border-l border-slate-100 pl-3";
           const remove = document.createElement("button");
           remove.type = "button";
-          remove.textContent = "Delete";
+          remove.tabIndex = -1;
           remove.setAttribute("aria-label", label);
-          remove.className = `inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 px-2 text-sm text-slate-500 hover:bg-red-50 hover:text-red-600 ${focusRing}`;
+          remove.className = `inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 ${focusRing}`;
+          remove.append(trashIcon());
           remove.addEventListener("click", () => deleteTask(task.id));
+          actions.append(remove);
 
-          li.append(input, remove);
+          li.append(nameWrap, estimates, actions);
           taskListEl.append(li);
         }
 
