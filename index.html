@@ -4,6 +4,20 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Log-Normal Planner</title>
+    <style>
+      html {
+        scrollbar-gutter: stable;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .spin {
+        animation: spin 0.7s linear infinite;
+        transform-origin: center;
+      }
+    </style>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
@@ -12,7 +26,7 @@
     <main class="mx-auto max-w-7xl px-4 py-10">
       <header class="mb-8">
         <h1 class="text-2xl font-semibold tracking-tight">Log-Normal Planner</h1>
-        <p class="mt-1 text-sm text-slate-500">Add tasks, then pick a mode and P<sub>90</sub> in business days.</p>
+        <p class="mt-1 text-sm text-slate-500">Add tasks, then pick a low and high bound in business days.</p>
       </header>
 
       <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -60,16 +74,10 @@
           class="hidden grid items-center gap-x-8 border-b border-slate-100 px-4 py-2 text-xs font-medium text-slate-500 [grid-template-columns:minmax(28rem,1fr)_auto_auto]"
         >
           <span class="border-r border-slate-100 pr-6 text-sm font-medium text-slate-700">Tasks</span>
-          <div class="flex gap-8">
-            <span class="w-[15.5rem]">
-              Mode
-              <span class="ml-1 font-normal text-slate-400">business days</span>
-            </span>
-            <span class="w-[15.5rem]">
-              P<sub>90</sub>
-              <span class="ml-1 font-normal text-slate-400">business days</span>
-            </span>
-          </div>
+          <span class="w-[24rem]">
+            Estimate
+            <span class="ml-1 font-normal text-slate-400">business days</span>
+          </span>
           <span class="w-10 border-l border-slate-100 pl-3">
             <span class="sr-only">Actions</span>
           </span>
@@ -81,9 +89,9 @@
           <button
             id="add-task-bottom"
             type="button"
-            class="hidden rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            class="hidden rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
           >
-            Add task
+            + Add task
           </button>
           <p id="usage" class="ml-auto text-sm tabular-nums text-slate-500">0 bytes</p>
         </div>
@@ -113,35 +121,8 @@
         </button>
       </div>
 
-      <section class="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-          <h2 class="text-sm font-medium text-slate-700">Simulation</h2>
-          <button
-            id="resimulate"
-            type="button"
-            class="rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:hover:bg-slate-300"
-          >
-            Re-simulate
-          </button>
-        </div>
-        <div class="flex flex-wrap items-center gap-4 px-4 py-3">
-          <label for="runs-slider" class="text-sm text-slate-600">
-            Runs
-            <span id="runs-label" class="ml-1 font-medium tabular-nums text-slate-900">10,000</span>
-          </label>
-          <input
-            id="runs-slider"
-            type="range"
-            min="500"
-            max="10000"
-            step="500"
-            value="10000"
-            class="min-w-48 flex-1 accent-slate-900"
-          />
-        </div>
-      </section>
-
-      <section id="summary-section" class="mt-4 hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div class="mt-8 space-y-4">
+      <section id="summary-section" class="hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-100 px-4 py-3">
           <h2 class="text-sm font-medium text-slate-700">Summary</h2>
         </div>
@@ -199,17 +180,70 @@
         </div>
       </section>
 
-      <section class="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="border-b border-slate-100 px-4 py-3">
+      <section id="graph-section" class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
           <h2 class="text-sm font-medium text-slate-700">Graph</h2>
+          <div id="graph-header-actions"></div>
         </div>
         <p id="output-status" class="px-4 pt-4 text-sm text-slate-500"></p>
+        <div id="graph-empty" class="flex flex-col items-center px-4 pb-12 pt-2">
+          <div id="graph-empty-slot">
+            <div id="sim-actions" class="flex flex-col items-center gap-4">
+              <button
+                id="resimulate"
+                type="button"
+                class="inline-flex items-center gap-2 rounded-md bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:hover:bg-slate-300"
+              >
+                <span id="sim-spinner" class="hidden inline-flex h-4 w-4">
+                  <svg class="spin h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z"
+                    />
+                  </svg>
+                </span>
+                <span id="sim-button-label">Simulate</span>
+              </button>
+              <div class="flex items-center gap-3">
+                <label for="runs-slider" class="text-sm text-slate-600">
+                  Runs
+                  <span id="runs-label" class="ml-1 font-medium tabular-nums text-slate-900">10,000</span>
+                </label>
+                <input
+                  id="runs-slider"
+                  type="range"
+                  min="500"
+                  max="10000"
+                  step="500"
+                  value="10000"
+                  class="w-44 accent-slate-900"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          id="sim-progress"
+          class="hidden flex flex-col items-center justify-center gap-3 px-4 py-16 text-sm text-slate-500"
+        >
+          <svg class="spin h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" />
+            <path
+              class="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z"
+            />
+          </svg>
+          <p id="sim-progress-label">Running simulation…</p>
+        </div>
         <div id="histogram-wrap" class="hidden h-80 px-4 pb-4">
           <canvas id="histogram" class="h-full w-full"></canvas>
         </div>
       </section>
 
-      <section id="waterfall-section" class="mt-4 hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section id="waterfall-section" class="hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-100 px-4 py-3">
           <h2 class="text-sm font-medium text-slate-700">Waterfall</h2>
         </div>
@@ -223,6 +257,7 @@
           ></div>
         </div>
       </section>
+      </div>
     </main>
 
     <script>
@@ -240,6 +275,14 @@
       const undoMessageEl = document.getElementById("undo-message");
       const undoDeleteBtn = document.getElementById("undo-delete");
       const resimulateBtn = document.getElementById("resimulate");
+      const simButtonLabelEl = document.getElementById("sim-button-label");
+      const simSpinnerEl = document.getElementById("sim-spinner");
+      const simProgressEl = document.getElementById("sim-progress");
+      const simProgressLabelEl = document.getElementById("sim-progress-label");
+      const simActionsEl = document.getElementById("sim-actions");
+      const graphEmptyEl = document.getElementById("graph-empty");
+      const graphEmptySlotEl = document.getElementById("graph-empty-slot");
+      const graphHeaderActionsEl = document.getElementById("graph-header-actions");
       const runsSliderEl = document.getElementById("runs-slider");
       const runsLabelEl = document.getElementById("runs-label");
       const outputStatusEl = document.getElementById("output-status");
@@ -257,8 +300,7 @@
       const waterfallSectionEl = document.getElementById("waterfall-section");
       const waterfallRowsEl = document.getElementById("waterfall-rows");
 
-      const MODE_DAYS = [1, 2, 3, 5, 8, 13];
-      const P90_DAYS = [1, 2, 3, 5, 8, 13, 21];
+      const ESTIMATE_DAYS = [0.5, 1, 2, 3, 5, 8, 13, 21, 34];
       const HOURS_PER_DAY = 8;
       const DEFAULT_RUNS = 10000;
       const DEFAULT_WEEKENDS = true;
@@ -283,6 +325,9 @@
       let applyingHash = false;
       let histogramChart = null;
       let waterfallCharts = [];
+      let resultsFresh = false;
+      let simulating = false;
+      let simToken = 0;
 
       function bytesToBase64Url(bytes) {
         let binary = "";
@@ -305,11 +350,6 @@
         return series.reduce((best, day) =>
           Math.abs(day - n) < Math.abs(best - n) ? day : best,
         );
-      }
-
-      function largestAtMost(value, series) {
-        const allowed = series.filter((day) => day <= value);
-        return allowed.length ? allowed[allowed.length - 1] : series[0];
       }
 
       function parseDay(value, series) {
@@ -515,13 +555,16 @@
       }
 
       function normalizeEstimate(mode, p90) {
-        let nextMode = parseDay(mode, MODE_DAYS);
-        let nextP90 = parseDay(p90, P90_DAYS);
-        if (nextMode != null && nextP90 != null) {
-          if (nextMode > nextP90) nextP90 = nearestDay(nextMode, P90_DAYS);
-          if (nextP90 < nextMode) nextMode = largestAtMost(nextP90, MODE_DAYS);
+        let nextMode = parseDay(mode, ESTIMATE_DAYS);
+        let nextP90 = parseDay(p90, ESTIMATE_DAYS);
+        if (nextMode != null && nextP90 != null && nextMode > nextP90) {
+          [nextMode, nextP90] = [nextP90, nextMode];
         }
         return { mode: nextMode, p90: nextP90 };
+      }
+
+      function formatChipLabel(day) {
+        return day === 0.5 ? "½" : String(day);
       }
 
       function clampRuns(value) {
@@ -710,32 +753,49 @@
         writeHash();
       }
 
-      function setMode(id, days) {
+      function setBounds(id, days) {
         const task = tasks.find((t) => t.id === id);
         if (!task) return;
-        if (task.mode === days) {
-          task.mode = null;
-          render();
-          return;
-        }
-        task.mode = parseDay(days, MODE_DAYS);
-        if (task.mode != null && task.p90 != null && task.mode > task.p90) {
-          task.p90 = nearestDay(task.mode, P90_DAYS);
-        }
-        render();
-      }
+        const value = parseDay(days, ESTIMATE_DAYS);
+        if (value == null) return;
+        const low = task.mode ?? task.p90;
+        const high = task.p90 ?? task.mode;
 
-      function setP90(id, days) {
-        const task = tasks.find((t) => t.id === id);
-        if (!task) return;
-        if (task.p90 === days) {
-          task.p90 = null;
-          render();
-          return;
-        }
-        task.p90 = parseDay(days, P90_DAYS);
-        if (task.mode != null && task.p90 != null && task.p90 < task.mode) {
-          task.mode = largestAtMost(task.p90, MODE_DAYS);
+        if (low == null && high == null) {
+          task.mode = value;
+          task.p90 = value;
+        } else if (low === high) {
+          if (value === low) {
+            task.mode = null;
+            task.p90 = null;
+          } else if (value < low) {
+            task.mode = value;
+            task.p90 = low;
+          } else {
+            task.mode = low;
+            task.p90 = value;
+          }
+        } else if (value < low) {
+          task.mode = value;
+          task.p90 = high;
+        } else if (value > high) {
+          task.mode = low;
+          task.p90 = value;
+        } else if (value === low) {
+          task.mode = high;
+          task.p90 = high;
+        } else if (value === high) {
+          task.mode = low;
+          task.p90 = low;
+        } else if (
+          ESTIMATE_DAYS.indexOf(value) - ESTIMATE_DAYS.indexOf(low) <
+          ESTIMATE_DAYS.indexOf(high) - ESTIMATE_DAYS.indexOf(value)
+        ) {
+          task.mode = value;
+          task.p90 = high;
+        } else {
+          task.mode = low;
+          task.p90 = value;
         }
         render();
       }
@@ -762,9 +822,9 @@
         const name = task.name.trim() || "Untitled task";
         const needMode = task.mode == null;
         const needP90 = task.p90 == null;
-        if (needMode && needP90) return `${name} (Mode and P90)`;
-        if (needMode) return `${name} (Mode)`;
-        return `${name} (P90)`;
+        if (needMode && needP90) return `${name} (estimate)`;
+        if (needMode) return `${name} (low bound)`;
+        return `${name} (high bound)`;
       }
 
       function fitLogNormal(mode, p90) {
@@ -833,21 +893,32 @@
         return { labels, counts, min: 0, max };
       }
 
-      function simulateRuns(readyTasks) {
+      function yieldToPaint() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      async function simulateRuns(readyTasks, token) {
         const fits = readyTasks.map((task) =>
           fitLogNormal(daysToHours(task.mode), daysToHours(task.p90)),
         );
         if (fits.some((fit) => !fit)) return { totals: [], finishByTask: [] };
         const finishByTask = fits.map(() => []);
         const totals = [];
-        for (let i = 0; i < runs; i++) {
+        const runCount = runs;
+        const chunk = 250;
+        for (let i = 0; i < runCount; i++) {
           let sum = 0;
           for (let t = 0; t < fits.length; t++) {
             sum += sampleLogNormal(fits[t].mu, fits[t].sigma);
             finishByTask[t].push(sum);
           }
           totals.push(sum);
+          if (i > 0 && i % chunk === 0) {
+            if (token !== simToken) return null;
+            await yieldToPaint();
+          }
         }
+        if (token !== simToken) return null;
         return { totals, finishByTask };
       }
 
@@ -959,6 +1030,67 @@
         histogramWrapEl.classList.add("hidden");
         waterfallSectionEl.classList.add("hidden");
         summarySectionEl.classList.add("hidden");
+      }
+
+      function setSimProgress(visible) {
+        simSpinnerEl.classList.toggle("hidden", !visible);
+        simProgressEl.classList.toggle("hidden", !visible);
+        simProgressEl.classList.toggle("flex", visible);
+      }
+
+      function placeSimActions() {
+        const inHeader = simulating || resultsFresh;
+        const home = inHeader ? graphHeaderActionsEl : graphEmptySlotEl;
+        if (simActionsEl.parentElement !== home) home.append(simActionsEl);
+        simActionsEl.className = inHeader
+          ? "flex items-center gap-3"
+          : "flex flex-col items-center gap-4";
+        graphEmptyEl.classList.toggle("hidden", inHeader);
+        resimulateBtn.className = inHeader
+          ? "inline-flex items-center gap-2 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:hover:bg-slate-300"
+          : "inline-flex items-center gap-2 rounded-md bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:hover:bg-slate-300";
+      }
+
+      function updateSimControls() {
+        const { ready, incomplete } = classifyTasks();
+        const canSimulate = ready.length > 0 && incomplete.length === 0 && !simulating;
+        resimulateBtn.disabled = !canSimulate;
+        simButtonLabelEl.textContent = simulating
+          ? "Simulating…"
+          : resultsFresh
+            ? "Re-simulate"
+            : "Simulate";
+        placeSimActions();
+        if (simulating) {
+          outputStatusEl.textContent = `Running ${runs.toLocaleString("en-US")} runs…`;
+          outputStatusEl.classList.remove("hidden");
+          return;
+        }
+        if (tasks.length === 0 || (ready.length === 0 && incomplete.length === 0)) {
+          outputStatusEl.textContent = "Add a task and set a low and high bound to see a forecast.";
+          outputStatusEl.classList.remove("hidden");
+          return;
+        }
+        if (incomplete.length > 0) {
+          outputStatusEl.textContent = `Finish estimates before simulating: ${incomplete.map(missingLabel).join("; ")}.`;
+          outputStatusEl.classList.remove("hidden");
+          return;
+        }
+        if (!resultsFresh) {
+          outputStatusEl.textContent = "";
+          outputStatusEl.classList.add("hidden");
+          return;
+        }
+        outputStatusEl.classList.remove("hidden");
+      }
+
+      function invalidateOutput() {
+        simToken += 1;
+        simulating = false;
+        resultsFresh = false;
+        setSimProgress(false);
+        clearHistogram();
+        updateSimControls();
       }
 
       function drawHistogram(calendarSamples, effortSamples, readyTasks, xMax) {
@@ -1224,39 +1356,46 @@
         });
       }
 
-      function renderOutput() {
+      async function runSimulation() {
         const { ready, incomplete } = classifyTasks();
-        const canSimulate = ready.length > 0 && incomplete.length === 0;
-        resimulateBtn.disabled = !canSimulate;
-
-        if (tasks.length === 0 || (ready.length === 0 && incomplete.length === 0)) {
-          outputStatusEl.textContent = "Add a task and set Mode and P90 to see a forecast.";
-          clearHistogram();
+        if (ready.length === 0 || incomplete.length > 0 || simulating) return;
+        const token = ++simToken;
+        simulating = true;
+        resultsFresh = false;
+        clearHistogram();
+        updateSimControls();
+        const spinnerTimer = setTimeout(() => {
+          if (token === simToken) setSimProgress(true);
+        }, 150);
+        await yieldToPaint();
+        const result = await simulateRuns(ready, token);
+        clearTimeout(spinnerTimer);
+        if (token !== simToken || !result) return;
+        simulating = false;
+        setSimProgress(false);
+        if (result.totals.length === 0) {
+          outputStatusEl.textContent = "Could not simulate these estimates.";
+          updateSimControls();
           return;
         }
-        if (incomplete.length > 0) {
-          outputStatusEl.textContent = `Finish estimates before simulating: ${incomplete.map(missingLabel).join("; ")}.`;
-          clearHistogram();
-          return;
-        }
-        const { totals, finishByTask } = simulateRuns(ready);
         const effortCap = ready.reduce((sum, task) => sum + task.p90, 0) * 1.2;
         const xMax = Math.max(1, workingDaysToCalendarElapsed(startDate, effortCap));
         const toElapsed = (hours) => workingDaysToCalendarElapsed(startDate, hoursToDays(hours));
-        drawHistogram(totals.map(toElapsed), totals.map(hoursToDays), ready, xMax);
+        drawHistogram(result.totals.map(toElapsed), result.totals.map(hoursToDays), ready, xMax);
         drawWaterfall(
-          finishByTask.map((samples) => samples.map(toElapsed)),
+          result.finishByTask.map((samples) => samples.map(toElapsed)),
           ready,
           xMax,
         );
+        resultsFresh = true;
+        updateSimControls();
       }
 
-      function setRuns(value, { simulate = false } = {}) {
+      function setRuns(value) {
         runs = clampRuns(value);
         runsSliderEl.value = String(runs);
         runsLabelEl.textContent = runs.toLocaleString("en-US");
         writeHash();
-        if (simulate) renderOutput();
       }
 
       function renderUndo() {
@@ -1284,35 +1423,36 @@
         return svg;
       }
 
-      function fibGroup(task, kind) {
-        const days = kind === "mode" ? MODE_DAYS : P90_DAYS;
-        const selected = kind === "mode" ? task.mode : task.p90;
-        const title = kind === "mode" ? "Mode" : "P90";
-        const isSet = selected != null;
+      function estimateGroup(task) {
+        const low = task.mode;
+        const high = task.p90;
+        const isSet = low != null || high != null;
         const row = document.createElement("div");
-        row.className = "flex w-[15.5rem] gap-1";
+        row.className = "grid w-[24rem] grid-cols-9 gap-1";
         row.setAttribute("role", "group");
         row.setAttribute(
           "aria-label",
-          `${title} for ${task.name.trim() || "untitled task"}`,
+          `Estimate for ${task.name.trim() || "untitled task"}`,
         );
+        const chipBase =
+          "box-border inline-flex h-8 w-full items-center justify-center rounded-md border border-transparent px-0 text-sm font-medium tabular-nums";
 
-        for (const day of days) {
-          const pressed = day === selected;
+        for (const day of ESTIMATE_DAYS) {
+          const isEnd = day === low || day === high;
+          const inBetween = low != null && high != null && day > low && day < high;
           const btn = document.createElement("button");
           btn.type = "button";
           btn.tabIndex = -1;
-          btn.textContent = String(day);
-          btn.setAttribute("aria-pressed", String(pressed));
-          btn.className = pressed
-            ? `inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-slate-900 px-1.5 text-sm font-medium text-white ${focusRingOnDark}`
-            : isSet
-              ? `inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-transparent px-1.5 text-sm font-medium text-slate-300 hover:bg-slate-100 hover:text-slate-700 ${focusRing}`
-              : `inline-flex h-8 min-w-8 items-center justify-center rounded-md bg-slate-100 px-1.5 text-sm font-medium text-slate-600 hover:bg-slate-200 ${focusRing}`;
-          btn.addEventListener("click", () => {
-            if (kind === "mode") setMode(task.id, day);
-            else setP90(task.id, day);
-          });
+          btn.textContent = formatChipLabel(day);
+          btn.setAttribute("aria-pressed", String(isEnd));
+          btn.className = isEnd
+            ? `${chipBase} bg-slate-900 text-white ${focusRingOnDark}`
+            : inBetween
+              ? `${chipBase} bg-slate-200 text-slate-600 hover:bg-slate-300 ${focusRing}`
+              : isSet
+                ? `${chipBase} bg-transparent text-slate-300 hover:bg-slate-100 hover:text-slate-700 ${focusRing}`
+                : `${chipBase} bg-slate-100 text-slate-600 hover:bg-slate-200 ${focusRing}`;
+          btn.addEventListener("click", () => setBounds(task.id, day));
           row.append(btn);
         }
 
@@ -1371,8 +1511,7 @@
           nameWrap.append(input);
 
           const estimates = document.createElement("div");
-          estimates.className = "flex gap-8";
-          estimates.append(fibGroup(task, "mode"), fibGroup(task, "p90"));
+          estimates.append(estimateGroup(task));
 
           const label = task.name.trim() ? `Delete ${task.name}` : "Delete untitled task";
           const actions = document.createElement("div");
@@ -1400,35 +1539,35 @@
         }
 
         writeHash();
-        renderOutput();
+        invalidateOutput();
       }
 
       function setStartDate(value) {
         startDate = clampStartDate(value);
         startDateEl.value = startDate;
         writeHash();
-        renderOutput();
+        invalidateOutput();
       }
 
       function setWeekends(next) {
         weekends = Boolean(next);
         renderCalendarToggles();
         writeHash();
-        renderOutput();
+        invalidateOutput();
       }
 
       function setFederalHolidays(next) {
         federalHolidays = Boolean(next);
         renderCalendarToggles();
         writeHash();
-        renderOutput();
+        invalidateOutput();
       }
 
       function setWinterBreak(next) {
         winterBreak = Boolean(next);
         renderCalendarToggles();
         writeHash();
-        renderOutput();
+        invalidateOutput();
       }
 
       addTaskBottomBtn.addEventListener("click", () => addTask());
@@ -1440,9 +1579,8 @@
         setFederalHolidays(federalHolidaysToggleEl.checked),
       );
       winterBreakToggleEl.addEventListener("change", () => setWinterBreak(winterBreakToggleEl.checked));
-      resimulateBtn.addEventListener("click", () => renderOutput());
+      resimulateBtn.addEventListener("click", () => runSimulation());
       runsSliderEl.addEventListener("input", () => setRuns(runsSliderEl.value));
-      runsSliderEl.addEventListener("change", () => setRuns(runsSliderEl.value, { simulate: true }));
       document.querySelector("main").addEventListener("keydown", (event) => {
         if (event.key !== "Escape") return;
         if (event.target === event.currentTarget) return;
