@@ -39,8 +39,7 @@ The Monte Carlo simulator then runs many simulations. In each run it samples a d
   - Incomplete estimates: do not invent values. Ignore fully blank rows. If any real task is missing Mode or P₉₀, hide the chart, list what is missing, and disable Re-simulate.
 - [x] **Time units (Phase 2).** UI is **days** (same Fibonacci chips). Simulation stays in **hours** (`1 day = 8 hours`). Hours / days / weeks switching is Phase 3 — no unit field in the hash yet.
 - [x] **Calendar / availability (Phase 2).** Start-date picker, skip weekends, federal holidays, winter break. Defaults: **start date = today**, **weekends on**, **federal holidays off**, **winter break off**. All live in the URL hash. Vacation and sick time still later.
-- **Critical-chain planning (later).** Plan the schedule against the modal case, and treat the remaining time (e.g. to P90) as a buffer. Details TBD.
-- **Actuals (later).** Record actual durations so critical-chain methods can track buffer consumption against the plan.
+- **Critical chain.** Schedule against the best case and pool the safety into one buffer. See [Critical chain](#critical-chain).
 
 ## Presentation Features
 
@@ -48,6 +47,26 @@ The Monte Carlo simulator then runs many simulations. In each run it samples a d
 - **Calendar overlay (later).** Extra shading of weekend and holiday bands, if we want more than the empty bins.
 - [x] **Start date.** Date picker at the top of the task inputs. Default **today**. Persist in the hash with weekends and holidays.
 - [x] **Waterfall.** Small finish-time histograms, one per task: each row is when that task finishes if they run in list order (prefix sums). Same elapsed-calendar axis as the total graph.
+- [x] **Schedule (Gantt).** Best-case bars plus a pooled buffer bar. See [Critical chain](#critical-chain).
+
+## Critical chain
+
+Padding every task individually is how estimates rot: the safety is invisible, it gets spent, and it never rolls forward. Critical chain does the opposite. **Schedule the work at the best case, strip the safety out of the tasks, and hold it in one shared buffer at the end.** The buffer is the commitment; the task bars are not promises.
+
+The buffer is **not** the sum of each task's gap to its P₉₀. Risk aggregates: the simulated total at the target percentile is smaller than every task going badly at once. That difference is the whole argument for the method, so the UI says both numbers out loud.
+
+- **Chain.** Tasks run back to back in list order at their **best case** (the low bound). Parallel work and real dependencies are later.
+- **Commit level.** The buffer runs from the end of the chain to the simulated total at **P₇₀ or P₉₀** — how aggressive you want the promise to be. Persisted in the hash (`c`).
+- **Buffer.** `commit − chain`, clamped at zero. One bar, drawn after the last task.
+
+### Steps
+
+1. [x] **Best case + buffer chart.** Horizontal bars on the shared elapsed-calendar axis: one per task at its best case, then the buffer. Date labels on top, calendar days on the bottom, same as the other graphs. A note under the chart states the chain length, the buffer, the commit date, and what per-task padding would have cost.
+2. **Actuals.** Mark a task done (and how long it really took). The chain reflows from there and overruns **eat buffer**; everything downstream slides right.
+3. **Buffer burn.** Show how much buffer is gone against how much of the chain is complete — the fever chart. Green / yellow / red zones, so "we're late" becomes a measurement instead of a feeling.
+4. **Feeding buffers.** Once tasks can run in parallel, side chains need their own smaller buffers where they join the critical chain.
+
+Open questions: whether the best case should be the mode or something more aggressive (P₅₀); whether re-simulating after actuals should re-fit the remaining tasks from observed error.
 
 ## Technical notes
 
@@ -83,7 +102,7 @@ Work calendar applies when mapping effort hours onto calendar dates. The Monte C
 
 1. **Unit switching.** Control to display and enter estimates in **hours, days, or weeks**. Persist the selected unit in the URL. Convert at the edges; simulation stays in hours. This is where we handle units in the payload (Phase 2 does not).
 
-Then come back and iterate: calendar overlay (shade non-work days), 2k / 8k remaining-budget meter, vacation / sick time, critical-chain, actuals, and the rest.
+Then come back and iterate: calendar overlay (shade non-work days), 2k / 8k remaining-budget meter, vacation / sick time, the rest of [Critical chain](#critical-chain), and the rest.
 
 _To be continued._
 

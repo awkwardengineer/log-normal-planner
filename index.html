@@ -8,6 +8,17 @@
       html {
         scrollbar-gutter: stable;
       }
+      :root {
+        --chart-label-w: 128px;
+        --chart-gap: 12px;
+      }
+      .chart-grid {
+        display: grid;
+        align-items: center;
+        grid-template-columns: var(--chart-label-w) minmax(0, 1fr);
+        column-gap: var(--chart-gap);
+        row-gap: 0.25rem;
+      }
       @keyframes spin {
         to {
           transform: rotate(360deg);
@@ -26,7 +37,7 @@
     <main class="mx-auto max-w-7xl px-4 py-10">
       <header class="mb-8">
         <h1 class="text-2xl font-semibold tracking-tight">Log-Normal Planner</h1>
-        <p class="mt-1 text-sm text-slate-500">Add tasks, then pick a low and high bound in business days.</p>
+        <p class="mt-1 text-sm text-slate-500">Add tasks, then pick a low and high bound.</p>
       </header>
 
       <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -66,6 +77,11 @@
               />
               Winter break
             </label>
+            <div id="unit-chips" class="flex gap-1" role="group" aria-label="Estimate unit">
+              <button type="button" data-unit="h" class="rounded-md px-2 py-0.5 text-xs font-medium">Hours</button>
+              <button type="button" data-unit="d" class="rounded-md px-2 py-0.5 text-xs font-medium">Days</button>
+              <button type="button" data-unit="w" class="rounded-md px-2 py-0.5 text-xs font-medium">Weeks</button>
+            </div>
           </div>
         </div>
 
@@ -74,9 +90,9 @@
           class="hidden grid items-center gap-x-8 border-b border-slate-100 px-4 py-2 text-xs font-medium text-slate-500 [grid-template-columns:minmax(28rem,1fr)_auto_auto]"
         >
           <span class="border-r border-slate-100 pr-6 text-sm font-medium text-slate-700">Tasks</span>
-          <span class="w-[24rem]">
-            Estimate
-            <span class="ml-1 font-normal text-slate-400">business days</span>
+          <span class="flex w-[24rem] flex-col gap-0.5">
+            <span class="text-sm font-medium text-slate-700">Estimate</span>
+            <span class="font-normal text-slate-400">Enter a range (recommended) or a single estimate.</span>
           </span>
           <span class="w-10 border-l border-slate-100 pl-3">
             <span class="sr-only">Actions</span>
@@ -132,11 +148,11 @@
             <p class="mt-0.5 text-xs text-slate-500">Business days</p>
             <div class="mt-2 flex flex-col items-start gap-2">
               <div class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
-                <span class="text-xs font-medium text-slate-500">Sum of modes</span>
+                <span class="text-xs font-medium text-slate-500">Sum of best cases</span>
                 <span id="stat-sum-mode" class="text-sm font-medium tabular-nums text-slate-900">—</span>
               </div>
               <div class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
-                <span class="text-xs font-medium text-slate-500">Sum of P<sub>90</sub>s</span>
+                <span class="text-xs font-medium text-slate-500">Sum of worst cases</span>
                 <span id="stat-sum-p90" class="text-sm font-medium tabular-nums text-slate-900">—</span>
               </div>
             </div>
@@ -177,6 +193,29 @@
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="schedule-section" class="hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+          <h2 class="text-sm font-medium text-slate-700">Schedule</h2>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500">Commit to</span>
+            <div id="buffer-target-chips" class="flex gap-1" role="group" aria-label="Buffer target">
+              <button type="button" data-target="70" class="rounded-md px-2 py-0.5 text-xs font-medium">P70</button>
+              <button type="button" data-target="90" class="rounded-md px-2 py-0.5 text-xs font-medium">P90</button>
+            </div>
+          </div>
+        </div>
+        <p class="px-4 pt-3 text-sm text-slate-500">
+          Each task is scheduled at its best case, back to back. The risk you stripped out of them is pooled into one buffer at the end.
+        </p>
+        <p id="schedule-note" class="px-4 pt-1 text-sm text-slate-500"></p>
+        <div class="px-4 pb-4 pt-2">
+          <div
+            id="schedule-rows"
+            class="chart-grid"
+          ></div>
         </div>
       </section>
 
@@ -248,12 +287,12 @@
           <h2 class="text-sm font-medium text-slate-700">Waterfall</h2>
         </div>
         <p class="px-4 pt-3 text-sm text-slate-500">
-          Calendar date each task finishes, if they run in list order. The axis is elapsed calendar days, not business days.
+          Simulated finish dates for each task, assuming they run in list order.
         </p>
         <div id="waterfall-wrap" class="px-4 pb-4">
           <div
             id="waterfall-rows"
-            class="grid items-center gap-x-3 gap-y-1 [grid-template-columns:8rem_minmax(0,1fr)]"
+            class="chart-grid"
           ></div>
         </div>
       </section>
@@ -268,6 +307,7 @@
       const federalHolidaysToggleEl = document.getElementById("federal-holidays-toggle");
       const winterBreakToggleEl = document.getElementById("winter-break-toggle");
       const columnHeadersEl = document.getElementById("column-headers");
+      const unitChipsEl = document.getElementById("unit-chips");
       const emptyStateEl = document.getElementById("empty-state");
       const addTaskBottomBtn = document.getElementById("add-task-bottom");
       const usageEl = document.getElementById("usage");
@@ -299,14 +339,29 @@
       const histogramWrapEl = document.getElementById("histogram-wrap");
       const waterfallSectionEl = document.getElementById("waterfall-section");
       const waterfallRowsEl = document.getElementById("waterfall-rows");
+      const scheduleSectionEl = document.getElementById("schedule-section");
+      const scheduleRowsEl = document.getElementById("schedule-rows");
+      const scheduleNoteEl = document.getElementById("schedule-note");
+      const bufferTargetChipsEl = document.getElementById("buffer-target-chips");
 
       const ESTIMATE_DAYS = [0.5, 1, 2, 3, 5, 8, 13, 21, 34];
       const HOURS_PER_DAY = 8;
+      const DAYS_PER_WEEK = 5;
+      const ESTIMATE_UNITS = ["h", "d", "w"];
+      const DEFAULT_UNIT = "d";
+      const BUFFER_TARGETS = [70, 90];
+      const DEFAULT_BUFFER_TARGET = 90;
       const DEFAULT_RUNS = 10000;
       const DEFAULT_WEEKENDS = true;
       const DEFAULT_FEDERAL_HOLIDAYS = false;
       const DEFAULT_WINTER_BREAK = false;
       const Z90 = 1.2815515655446004;
+
+      const chartGridStyle = getComputedStyle(document.documentElement);
+      const CHART_GUTTER =
+        parseFloat(chartGridStyle.getPropertyValue("--chart-label-w")) +
+        parseFloat(chartGridStyle.getPropertyValue("--chart-gap"));
+      const CHART_EDGE_PAD = 24;
       const federalHolidayCache = new Map();
 
       const focusRing =
@@ -320,11 +375,15 @@
       let weekends = DEFAULT_WEEKENDS;
       let federalHolidays = DEFAULT_FEDERAL_HOLIDAYS;
       let winterBreak = DEFAULT_WINTER_BREAK;
+      let estimateUnit = DEFAULT_UNIT;
+      let bufferTarget = DEFAULT_BUFFER_TARGET;
       let runs = DEFAULT_RUNS;
       let undo = null;
       let applyingHash = false;
       let histogramChart = null;
       let waterfallCharts = [];
+      let scheduleCharts = [];
+      let lastResult = null;
       let resultsFresh = false;
       let simulating = false;
       let simToken = 0;
@@ -359,12 +418,28 @@
         return nearestDay(n, series);
       }
 
-      function daysToHours(days) {
-        return days * HOURS_PER_DAY;
+      function estimateToHours(value) {
+        if (estimateUnit === "h") return value;
+        if (estimateUnit === "w") return value * HOURS_PER_DAY * DAYS_PER_WEEK;
+        return value * HOURS_PER_DAY;
+      }
+
+      function parseUnit(value) {
+        const unit = String(value ?? DEFAULT_UNIT);
+        return ESTIMATE_UNITS.includes(unit) ? unit : DEFAULT_UNIT;
+      }
+
+      function parseBufferTarget(value) {
+        const target = Number(value);
+        return BUFFER_TARGETS.includes(target) ? target : DEFAULT_BUFFER_TARGET;
       }
 
       function hoursToDays(hours) {
         return hours / HOURS_PER_DAY;
+      }
+
+      function estimateToBusinessDays(value) {
+        return hoursToDays(estimateToHours(value));
       }
 
       function todayISO() {
@@ -477,6 +552,45 @@
         winterBreakToggleEl.checked = winterBreak;
       }
 
+      function renderUnitChips() {
+        for (const btn of unitChipsEl.querySelectorAll("[data-unit]")) {
+          const selected = btn.getAttribute("data-unit") === estimateUnit;
+          btn.disabled = false;
+          btn.setAttribute("aria-pressed", String(selected));
+          btn.className = selected
+            ? `rounded-md bg-slate-900 px-2 py-0.5 text-xs font-medium text-white ${focusRingOnDark}`
+            : `rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 ${focusRing}`;
+        }
+      }
+
+      function setEstimateUnit(next) {
+        const unit = parseUnit(next);
+        if (unit === estimateUnit) return;
+        estimateUnit = unit;
+        renderUnitChips();
+        writeHash();
+        invalidateOutput();
+      }
+
+      function renderBufferChips() {
+        for (const btn of bufferTargetChipsEl.querySelectorAll("[data-target]")) {
+          const selected = Number(btn.getAttribute("data-target")) === bufferTarget;
+          btn.setAttribute("aria-pressed", String(selected));
+          btn.className = selected
+            ? `rounded-md bg-slate-900 px-2 py-0.5 text-xs font-medium text-white ${focusRingOnDark}`
+            : `rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 ${focusRing}`;
+        }
+      }
+
+      function setBufferTarget(next) {
+        const target = parseBufferTarget(next);
+        if (target === bufferTarget) return;
+        bufferTarget = target;
+        renderBufferChips();
+        writeHash();
+        if (lastResult) drawSchedule(lastResult.ready, lastResult.effortDays, lastResult.xMax);
+      }
+
       function dateForWorkingDays(startISO, workingDays) {
         let cursor = parseISODate(startISO) ?? parseISODate(todayISO());
         const days = Number(workingDays);
@@ -522,6 +636,13 @@
         return `${formatDayCount(elapsed)} calendar days · ${formatAxisDate(dateForElapsedDays(startDate, elapsed))}`;
       }
 
+      // Tick labels at the ends of a visible axis would otherwise inset the plot area,
+      // which charts with hidden axes never do. CHART_EDGE_PAD covers the overhang instead.
+      function lockAxisPadding(scale) {
+        scale.paddingLeft = 0;
+        scale.paddingRight = 0;
+      }
+
       function dayDateScales(xMin, xMax) {
         return {
           x: {
@@ -530,6 +651,7 @@
             max: xMax,
             position: "bottom",
             display: true,
+            afterFit: lockAxisPadding,
             title: { display: true, text: "Calendar days" },
             ticks: { maxTicksLimit: 12 },
             grid: { display: false },
@@ -541,6 +663,7 @@
             max: xMax,
             position: "top",
             display: true,
+            afterFit: lockAxisPadding,
             title: { display: true, text: "Date" },
             ticks: {
               maxTicksLimit: 12,
@@ -582,6 +705,8 @@
           w: weekends ? 1 : 0,
           h: federalHolidays ? 1 : 0,
           b: winterBreak ? 1 : 0,
+          u: estimateUnit,
+          c: bufferTarget,
           t: tasks.map((task) => [task.name, task.mode, task.p90]),
         });
         return bytesToBase64Url(new TextEncoder().encode(json));
@@ -597,6 +722,8 @@
             weekends: DEFAULT_WEEKENDS,
             federalHolidays: DEFAULT_FEDERAL_HOLIDAYS,
             winterBreak: DEFAULT_WINTER_BREAK,
+            estimateUnit: DEFAULT_UNIT,
+            bufferTarget: DEFAULT_BUFFER_TARGET,
           };
         }
         try {
@@ -626,6 +753,8 @@
             weekends: parseFlag(data.w, DEFAULT_WEEKENDS),
             federalHolidays: parseFlag(data.h, DEFAULT_FEDERAL_HOLIDAYS),
             winterBreak: parseFlag(data.b, DEFAULT_WINTER_BREAK),
+            estimateUnit: parseUnit(data.u),
+            bufferTarget: parseBufferTarget(data.c),
           };
         } catch {
           return null;
@@ -638,7 +767,9 @@
           startDate !== todayISO() ||
           weekends !== DEFAULT_WEEKENDS ||
           federalHolidays !== DEFAULT_FEDERAL_HOLIDAYS ||
-          winterBreak !== DEFAULT_WINTER_BREAK
+          winterBreak !== DEFAULT_WINTER_BREAK ||
+          estimateUnit !== DEFAULT_UNIT ||
+          bufferTarget !== DEFAULT_BUFFER_TARGET
         );
       }
 
@@ -686,6 +817,8 @@
           weekends = DEFAULT_WEEKENDS;
           federalHolidays = DEFAULT_FEDERAL_HOLIDAYS;
           winterBreak = DEFAULT_WINTER_BREAK;
+          estimateUnit = DEFAULT_UNIT;
+          bufferTarget = DEFAULT_BUFFER_TARGET;
         } else {
           applyTasks(doc.records);
           runs = doc.runs;
@@ -693,6 +826,8 @@
           weekends = doc.weekends;
           federalHolidays = doc.federalHolidays;
           winterBreak = doc.winterBreak;
+          estimateUnit = doc.estimateUnit;
+          bufferTarget = doc.bufferTarget;
         }
         runsSliderEl.value = String(runs);
         runsLabelEl.textContent = runs.toLocaleString("en-US");
@@ -899,7 +1034,7 @@
 
       async function simulateRuns(readyTasks, token) {
         const fits = readyTasks.map((task) =>
-          fitLogNormal(daysToHours(task.mode), daysToHours(task.p90)),
+          fitLogNormal(estimateToHours(task.mode), estimateToHours(task.p90)),
         );
         if (fits.some((fit) => !fit)) return { totals: [], finishByTask: [] };
         const finishByTask = fits.map(() => []);
@@ -1027,8 +1162,10 @@
         for (const chart of waterfallCharts) chart.destroy();
         waterfallCharts = [];
         waterfallRowsEl.replaceChildren();
+        clearScheduleCharts();
         histogramWrapEl.classList.add("hidden");
         waterfallSectionEl.classList.add("hidden");
+        scheduleSectionEl.classList.add("hidden");
         summarySectionEl.classList.add("hidden");
       }
 
@@ -1088,6 +1225,7 @@
         simToken += 1;
         simulating = false;
         resultsFresh = false;
+        lastResult = null;
         setSimProgress(false);
         clearHistogram();
         updateSimControls();
@@ -1105,8 +1243,8 @@
         const medianCal = workingDaysToCalendarElapsed(startDate, median);
         const p70Cal = workingDaysToCalendarElapsed(startDate, p70);
         const p90Cal = workingDaysToCalendarElapsed(startDate, p90);
-        const sumMode = readyTasks.reduce((sum, task) => sum + task.mode, 0);
-        const sumP90 = readyTasks.reduce((sum, task) => sum + task.p90, 0);
+        const sumMode = readyTasks.reduce((sum, task) => sum + estimateToBusinessDays(task.mode), 0);
+        const sumP90 = readyTasks.reduce((sum, task) => sum + estimateToBusinessDays(task.p90), 0);
         const { labels, counts, min: xMin } = binElapsedDays(calendarSamples, xMax);
         const medianLabel = `Median · ${formatAxisDate(dateForWorkingDays(startDate, median))}`;
         const p70Label = `P70 · ${formatAxisDate(dateForWorkingDays(startDate, p70))}`;
@@ -1178,7 +1316,7 @@
             responsive: true,
             maintainAspectRatio: false,
             parsing: false,
-            layout: { padding: { top: 16 } },
+            layout: { padding: { top: 16, left: CHART_EDGE_PAD, right: CHART_EDGE_PAD } },
             plugins: {
               legend: { display: false },
               tooltip: {
@@ -1256,10 +1394,96 @@
                 title: { display: true, text: "Runs" },
                 beginAtZero: true,
                 ticks: { precision: 0 },
+                // Stand in for the label column the other charts use, so every plot area starts at the same x.
+                afterFit(scale) {
+                  scale.width = CHART_GUTTER;
+                },
               },
             },
           },
         });
+      }
+
+      function dummyAxisLine(xAxisID, xMax) {
+        return {
+          type: "line",
+          xAxisID,
+          data: [
+            { x: 0, y: 0 },
+            { x: xMax, y: 0 },
+          ],
+          borderWidth: 0,
+          pointRadius: 0,
+          fill: false,
+        };
+      }
+
+      function addWaterfallChart(canvas, { labels, counts, name, xMax, axis }) {
+        const scales = dayDateScales(0, xMax);
+        scales.x.display = axis === "days";
+        scales.xDate.display = axis === "date";
+        const showAxes = axis === "date" || axis === "days";
+        const datasets = showAxes
+          ? [dummyAxisLine(axis === "date" ? "xDate" : "x", xMax)]
+          : [
+              {
+                xAxisID: "x",
+                label: name,
+                data: labels.map((day, i) => ({ x: day, y: counts[i] })),
+                backgroundColor: "rgb(15 23 42 / 0.75)",
+                hoverBackgroundColor: "rgb(15 23 42 / 0.9)",
+                borderRadius: 2,
+                barPercentage: 1,
+                categoryPercentage: 1,
+              },
+            ];
+        waterfallCharts.push(
+          new Chart(canvas, {
+            type: showAxes ? "line" : "bar",
+            data: { datasets },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: false,
+              parsing: false,
+              layout: { padding: { left: CHART_EDGE_PAD, right: CHART_EDGE_PAD } },
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  enabled: !showAxes,
+                  callbacks: {
+                    title(items) {
+                      return items[0]?.dataset.label ?? "";
+                    },
+                    label(item) {
+                      return `${formatCalendarPoint(item.parsed.x)} · ${item.parsed.y} runs`;
+                    },
+                  },
+                },
+              },
+              scales: {
+                ...scales,
+                y: {
+                  display: false,
+                  beginAtZero: true,
+                  ticks: { display: false },
+                  grid: { display: false },
+                  border: { display: false },
+                },
+              },
+            },
+          }),
+        );
+      }
+
+      function addWaterfallAxisRow(xMax, axis, heightClass) {
+        const label = document.createElement("div");
+        const wrap = document.createElement("div");
+        wrap.className = heightClass;
+        const canvas = document.createElement("canvas");
+        wrap.append(canvas);
+        waterfallRowsEl.append(label, wrap);
+        addWaterfallChart(canvas, { labels: [], counts: [], name: "", xMax, axis });
       }
 
       function drawWaterfall(finishByTask, readyTasks, xMax) {
@@ -1269,9 +1493,9 @@
         waterfallRowsEl.replaceChildren();
         waterfallSectionEl.classList.remove("hidden");
 
-        const last = finishByTask.length - 1;
+        addWaterfallAxisRow(xMax, "date", "h-12");
+
         finishByTask.forEach((samples, index) => {
-          const isLast = index === last;
           const { labels, counts } = binElapsedDays(samples, xMax);
           const name = readyTasks[index].name.trim() || "Untitled task";
 
@@ -1280,80 +1504,162 @@
           nameEl.textContent = name;
 
           const chartWrap = document.createElement("div");
-          chartWrap.className = isLast ? "h-28" : "h-14";
+          chartWrap.className = "h-14";
           const canvas = document.createElement("canvas");
           chartWrap.append(canvas);
           waterfallRowsEl.append(nameEl, chartWrap);
-
-          const scales = dayDateScales(0, xMax);
-          if (!isLast) {
-            scales.x.display = false;
-            scales.xDate.display = false;
-          }
-
-          waterfallCharts.push(
-            new Chart(canvas, {
-              type: "bar",
-              data: {
-                datasets: [
-                  {
-                    xAxisID: "x",
-                    label: name,
-                    data: labels.map((day, i) => ({ x: day, y: counts[i] })),
-                    backgroundColor: "rgb(15 23 42 / 0.75)",
-                    hoverBackgroundColor: "rgb(15 23 42 / 0.9)",
-                    borderRadius: 2,
-                    barPercentage: 1,
-                    categoryPercentage: 1,
-                  },
-                  {
-                    type: "line",
-                    xAxisID: "xDate",
-                    data: [
-                      { x: 0, y: 0 },
-                      { x: xMax, y: 0 },
-                    ],
-                    borderWidth: 0,
-                    pointRadius: 0,
-                    fill: false,
-                  },
-                ],
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                parsing: false,
-                plugins: {
-                  legend: { display: false },
-                  tooltip: {
-                    filter(item) {
-                      return item.datasetIndex === 0;
-                    },
-                    callbacks: {
-                      title(items) {
-                        return items[0]?.dataset.label ?? "";
-                      },
-                      label(item) {
-                        return `${formatCalendarPoint(item.parsed.x)} · ${item.parsed.y} runs`;
-                      },
-                    },
-                  },
-                },
-                scales: {
-                  ...scales,
-                  y: {
-                    display: false,
-                    beginAtZero: true,
-                    ticks: { display: false },
-                    grid: { display: false },
-                    border: { display: false },
-                  },
-                },
-              },
-            }),
-          );
+          addWaterfallChart(canvas, { labels, counts, name, xMax, axis: "none" });
         });
+
+        addWaterfallAxisRow(xMax, "days", "h-12");
+      }
+
+      function clearScheduleCharts() {
+        for (const chart of scheduleCharts) chart.destroy();
+        scheduleCharts = [];
+        scheduleRowsEl.replaceChildren();
+      }
+
+      function scheduleBoundary(businessDays) {
+        if (businessDays <= 0) return 0;
+        return workingDaysToCalendarElapsed(startDate, businessDays) + 1;
+      }
+
+      function addScheduleAxisRow(xMax, axis) {
+        const scales = dayDateScales(0, xMax);
+        scales.x.display = axis === "days";
+        scales.xDate.display = axis === "date";
+        const label = document.createElement("div");
+        const wrap = document.createElement("div");
+        wrap.className = "h-12";
+        const canvas = document.createElement("canvas");
+        wrap.append(canvas);
+        scheduleRowsEl.append(label, wrap);
+        scheduleCharts.push(
+          new Chart(canvas, {
+            type: "line",
+            data: { datasets: [dummyAxisLine(axis === "date" ? "xDate" : "x", xMax)] },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: false,
+              parsing: false,
+              layout: { padding: { left: CHART_EDGE_PAD, right: CHART_EDGE_PAD } },
+              plugins: { legend: { display: false }, tooltip: { enabled: false } },
+              scales: {
+                ...scales,
+                y: {
+                  display: false,
+                  beginAtZero: true,
+                  grid: { display: false },
+                  border: { display: false },
+                },
+              },
+            },
+          }),
+        );
+      }
+
+      function addScheduleBarRow(name, from, to, days, color, xMax) {
+        const scales = dayDateScales(0, xMax);
+        scales.x.display = false;
+        scales.xDate.display = false;
+        const labelEl = document.createElement("div");
+        labelEl.className = "truncate text-xs text-slate-600";
+        labelEl.textContent = name;
+        const wrap = document.createElement("div");
+        wrap.className = "h-8";
+        const canvas = document.createElement("canvas");
+        wrap.append(canvas);
+        scheduleRowsEl.append(labelEl, wrap);
+        scheduleCharts.push(
+          new Chart(canvas, {
+            type: "bar",
+            data: {
+              labels: [name],
+              datasets: [
+                {
+                  label: name,
+                  data: [[from, to]],
+                  backgroundColor: color,
+                  borderRadius: 3,
+                  barPercentage: 0.75,
+                  categoryPercentage: 1,
+                },
+              ],
+            },
+            options: {
+              indexAxis: "y",
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: false,
+              layout: { padding: { left: CHART_EDGE_PAD, right: CHART_EDGE_PAD } },
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    title(items) {
+                      return items[0]?.dataset.label ?? "";
+                    },
+                    label() {
+                      const first = formatAxisDate(dateForElapsedDays(startDate, from));
+                      const last = formatAxisDate(
+                        dateForElapsedDays(startDate, Math.max(from, to - 1)),
+                      );
+                      return `${first} → ${last} · ${formatDayCount(days)} business days`;
+                    },
+                  },
+                },
+              },
+              scales: { ...scales, y: { display: false } },
+            },
+          }),
+        );
+      }
+
+      function drawSchedule(readyTasks, effortDays, xMax) {
+        if (typeof Chart === "undefined" || readyTasks.length === 0) return;
+        clearScheduleCharts();
+        scheduleSectionEl.classList.remove("hidden");
+        addScheduleAxisRow(xMax, "date");
+
+        let chainDays = 0;
+        for (const task of readyTasks) {
+          const best = estimateToBusinessDays(task.mode);
+          const from = scheduleBoundary(chainDays);
+          chainDays += best;
+          addScheduleBarRow(
+            task.name.trim() || "Untitled task",
+            from,
+            scheduleBoundary(chainDays),
+            best,
+            "rgb(15 23 42 / 0.8)",
+            xMax,
+          );
+        }
+
+        const sortedEffort = [...effortDays].sort((a, b) => a - b);
+        const commitDays = percentile(sortedEffort, bufferTarget / 100);
+        const bufferDays = Math.max(0, commitDays - chainDays);
+        addScheduleBarRow(
+          `Buffer · P${bufferTarget}`,
+          scheduleBoundary(chainDays),
+          scheduleBoundary(chainDays + bufferDays),
+          bufferDays,
+          "rgb(245 158 11 / 0.85)",
+          xMax,
+        );
+
+        addScheduleAxisRow(xMax, "days");
+
+        const commitDate = formatAxisDate(dateForWorkingDays(startDate, commitDays));
+        const sumWorst = readyTasks.reduce(
+          (sum, task) => sum + estimateToBusinessDays(task.p90),
+          0,
+        );
+        scheduleNoteEl.textContent =
+          `${formatDayCount(chainDays)} business days of work plus ${formatDayCount(bufferDays)} days of buffer, so you commit to ${commitDate}. ` +
+          `Padding every task to its own worst case would cost ${formatDayCount(sumWorst)} days.`;
       }
 
       async function runSimulation() {
@@ -1378,15 +1684,18 @@
           updateSimControls();
           return;
         }
-        const effortCap = ready.reduce((sum, task) => sum + task.p90, 0) * 1.2;
+        const effortCap = ready.reduce((sum, task) => sum + estimateToBusinessDays(task.p90), 0) * 1.2;
         const xMax = Math.max(1, workingDaysToCalendarElapsed(startDate, effortCap));
         const toElapsed = (hours) => workingDaysToCalendarElapsed(startDate, hoursToDays(hours));
-        drawHistogram(result.totals.map(toElapsed), result.totals.map(hoursToDays), ready, xMax);
+        const effortDays = result.totals.map(hoursToDays);
+        drawHistogram(result.totals.map(toElapsed), effortDays, ready, xMax);
+        drawSchedule(ready, effortDays, xMax);
         drawWaterfall(
           result.finishByTask.map((samples) => samples.map(toElapsed)),
           ready,
           xMax,
         );
+        lastResult = { ready, effortDays, xMax };
         resultsFresh = true;
         updateSimControls();
       }
@@ -1467,6 +1776,8 @@
         tasksHeadingEl.classList.toggle("hidden", hasTasks);
         columnHeadersEl.classList.toggle("hidden", !hasTasks);
         addTaskBottomBtn.classList.toggle("hidden", !hasTasks);
+        renderUnitChips();
+        renderBufferChips();
 
         for (const task of tasks) {
           const li = document.createElement("li");
@@ -1579,6 +1890,14 @@
         setFederalHolidays(federalHolidaysToggleEl.checked),
       );
       winterBreakToggleEl.addEventListener("change", () => setWinterBreak(winterBreakToggleEl.checked));
+      unitChipsEl.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-unit]");
+        if (btn) setEstimateUnit(btn.getAttribute("data-unit"));
+      });
+      bufferTargetChipsEl.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-target]");
+        if (btn) setBufferTarget(btn.getAttribute("data-target"));
+      });
       resimulateBtn.addEventListener("click", () => runSimulation());
       runsSliderEl.addEventListener("input", () => setRuns(runsSliderEl.value));
       document.querySelector("main").addEventListener("keydown", (event) => {
