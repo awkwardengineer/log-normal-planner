@@ -20,7 +20,18 @@
         row-gap: 0.25rem;
       }
       .estimate-row {
-        width: var(--estimate-row-w, 24rem);
+        width: var(--estimate-row-w, 32rem);
+      }
+      .bound-caret {
+        position: absolute;
+        top: -2px;
+        width: 0;
+        height: 0;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+        border-top: 5px solid rgb(15 23 42);
+        transform: translateX(-50%);
+        pointer-events: none;
       }
       @keyframes spin {
         to {
@@ -481,6 +492,49 @@
         return nearestDay(n, series);
       }
 
+      function parseEstimateNumber(raw) {
+        if (raw == null) return null;
+        const text = String(raw).trim().replace(",", ".");
+        if (text === "") return null;
+        if (text === "½" || text === "1/2") return 0.5;
+        const n = Number(text);
+        if (!Number.isFinite(n) || n <= 0) return null;
+        return n;
+      }
+
+      function matchChip(value, series = estimateDays()) {
+        if (value == null) return null;
+        return series.find((day) => Math.abs(day - value) < 1e-9) ?? null;
+      }
+
+      function coerceEstimateValue(raw, series = estimateDays()) {
+        const value = parseEstimateNumber(raw);
+        if (value == null) return null;
+        return matchChip(value, series) ?? value;
+      }
+
+      function formatEstimateInput(value) {
+        if (value == null) return "";
+        return String(value);
+      }
+
+      function caretPercent(value, series) {
+        if (value == null || series.length === 0) return null;
+        if (matchChip(value, series) != null) return null;
+        if (value < series[0]) return (0.2 / series.length) * 100;
+        if (value > series[series.length - 1]) {
+          return ((series.length - 0.2) / series.length) * 100;
+        }
+        for (let i = 0; i < series.length - 1; i++) {
+          if (value >= series[i] && value <= series[i + 1]) {
+            const span = series[i + 1] - series[i];
+            const t = span === 0 ? 0 : (value - series[i]) / span;
+            return ((i + 0.5 + t) / series.length) * 100;
+          }
+        }
+        return null;
+      }
+
       function estimateToHours(value) {
         if (estimateUnit === "h") return value;
         if (estimateUnit === "w") return value * HOURS_PER_DAY * DAYS_PER_WEEK;
@@ -688,7 +742,7 @@
         }
         document.documentElement.style.setProperty(
           "--estimate-row-w",
-          estimateMethod === "lin" ? "34rem" : "24rem",
+          estimateMethod === "lin" ? "42rem" : "32rem",
         );
         renderEstimateSettingsLabel();
       }
@@ -815,10 +869,9 @@
         };
       }
 
-      function normalizeEstimate(mode, p90, method = estimateMethod) {
-        const series = estimateDays(method);
-        let nextMode = parseDay(mode, series);
-        let nextP90 = parseDay(p90, series);
+      function normalizeEstimate(mode, p90) {
+        let nextMode = parseEstimateNumber(mode);
+        let nextP90 = parseEstimateNumber(p90);
         if (nextMode != null && nextP90 != null && nextMode > nextP90) {
           [nextMode, nextP90] = [nextP90, nextMode];
         }
@@ -886,7 +939,7 @@
               const p90 = Array.isArray(item) ? item[2] : item?.p;
               return {
                 name: String(name ?? ""),
-                ...normalizeEstimate(mode, p90, estimateMethod),
+                ...normalizeEstimate(mode, p90),
               };
             });
           }
@@ -1047,28 +1100,83 @@
         return value - low < high - value;
       }
 
+      function orderBounds(task) {
+        if (task.mode != null && task.p90 != null && task.mode > task.p90) {
+          [task.mode, task.p90] = [task.p90, task.mode];
+        }
+      }
+
+      function isPointEstimate(task) {
+        return (
+          task.mode != null &&
+          task.p90 != null &&
+          Math.abs(task.mode - task.p90) < 1e-9
+        );
+      }
+
+      function isHighDimmed(task) {
+        if (task.editBound === "high") return false;
+        if (task.editBound === "low") return true;
+        return isPointEstimate(task);
+      }
+
+      function setBound(id, which, raw, options = {}) {
+        const task = tasks.find((t) => t.id === id);
+        if (!task) return;
+        const value = coerceEstimateValue(raw);
+        if (which === "low") task.mode = value;
+        else task.p90 = value;
+        orderBounds(task);
+        task.editBound = which;
+        render({
+          focusEstimate: options.focus ? { id, which } : null,
+          preserveOutput: Boolean(options.preserveOutput),
+        });
+      }
+
       function setBounds(id, days) {
         const task = tasks.find((t) => t.id === id);
         if (!task) return;
         const series = estimateDays();
-        const value = parseDay(days, series);
+        const value = matchChip(days, series) ?? parseDay(days, series);
         if (value == null) return;
+
+        // While editing a real range, chips move only the active bound.
+        // Point estimates still use range logic so the second click can set high.
+        if (task.editBound === "low" && !isPointEstimate(task)) {
+          task.mode = value;
+          orderBounds(task);
+          render({ focusEstimate: { id, which: "low" } });
+          return;
+        }
+        if (task.editBound === "high" && !isPointEstimate(task)) {
+          task.p90 = value;
+          orderBounds(task);
+          task.editBound = "high";
+          render({ focusEstimate: { id, which: "high" } });
+          return;
+        }
+
         const low = task.mode ?? task.p90;
         const high = task.p90 ?? task.mode;
 
         if (low == null && high == null) {
           task.mode = value;
           task.p90 = value;
+          task.editBound = "low";
         } else if (low === high) {
           if (value === low) {
             task.mode = null;
             task.p90 = null;
+            task.editBound = null;
           } else if (value < low) {
             task.mode = value;
             task.p90 = low;
+            task.editBound = null;
           } else {
             task.mode = low;
             task.p90 = value;
+            task.editBound = null;
           }
         } else if (value < low) {
           task.mode = value;
@@ -1079,9 +1187,11 @@
         } else if (value === low) {
           task.mode = high;
           task.p90 = high;
+          task.editBound = "low";
         } else if (value === high) {
           task.mode = low;
           task.p90 = low;
+          task.editBound = "low";
         } else if (closerToLow(value, low, high, series)) {
           task.mode = value;
           task.p90 = high;
@@ -1889,24 +1999,82 @@
         return svg;
       }
 
+      function syncBoundInputStyles(group, task) {
+        const highEl = group.querySelector('[data-bound="high"]');
+        if (!highEl) return;
+        const dimmed = isHighDimmed(task);
+        highEl.classList.toggle("text-slate-400", dimmed);
+        highEl.classList.toggle("placeholder:text-slate-300", dimmed);
+        highEl.classList.toggle("text-slate-900", !dimmed);
+      }
+
+      function boundInput(task, which) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.inputMode = "decimal";
+        input.autocomplete = "off";
+        input.dataset.bound = which;
+        input.setAttribute("aria-label", which === "low" ? "Low bound" : "High bound");
+        input.placeholder = which === "low" ? "Low" : "High";
+        input.value = formatEstimateInput(which === "low" ? task.mode : task.p90);
+        const dimmed = which === "high" && isHighDimmed(task);
+        input.className = [
+          "h-8 w-12 shrink-0 rounded-md border border-slate-200 bg-white px-1 text-center text-sm tabular-nums outline-none focus:border-slate-400",
+          focusRing,
+          dimmed ? "text-slate-400 placeholder:text-slate-300" : "text-slate-900",
+        ].join(" ");
+        input.addEventListener("focus", () => {
+          task.editBound = which;
+          const group = input.closest("[role='group']");
+          if (group) syncBoundInputStyles(group, task);
+        });
+        input.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          setBound(task.id, which, event.target.value, { focus: true });
+        });
+        input.addEventListener("blur", (event) => {
+          const raw = event.target.value;
+          queueMicrotask(() => {
+            if (!input.isConnected) return;
+            const next = coerceEstimateValue(raw);
+            const current = which === "low" ? task.mode : task.p90;
+            if (next == null && current == null) return;
+            if (next != null && current != null && Math.abs(next - current) < 1e-9) {
+              input.value = formatEstimateInput(current);
+              return;
+            }
+            setBound(task.id, which, raw);
+          });
+        });
+        return input;
+      }
+
       function estimateGroup(task) {
         const series = estimateDays();
         const low = task.mode;
         const high = task.p90;
         const isSet = low != null || high != null;
         const row = document.createElement("div");
-        row.className = "estimate-row grid gap-1";
-        row.style.gridTemplateColumns = `repeat(${series.length}, minmax(0, 1fr))`;
+        row.className = "estimate-row flex items-center gap-4";
         row.setAttribute("role", "group");
         row.setAttribute(
           "aria-label",
           `Estimate for ${task.name.trim() || "untitled task"}`,
         );
+
+        const track = document.createElement("div");
+        track.className = "relative min-w-0 flex-1";
+        const chips = document.createElement("div");
+        chips.className = "grid gap-1";
+        chips.style.gridTemplateColumns = `repeat(${series.length}, minmax(0, 1fr))`;
         const chipBase =
           "box-border inline-flex h-8 w-full items-center justify-center rounded-md border border-transparent px-0 text-sm font-medium tabular-nums";
 
         for (const day of series) {
-          const isEnd = day === low || day === high;
+          const isEnd =
+            (low != null && Math.abs(day - low) < 1e-9) ||
+            (high != null && Math.abs(day - high) < 1e-9);
           const inBetween = low != null && high != null && day > low && day < high;
           const btn = document.createElement("button");
           btn.type = "button";
@@ -1921,15 +2089,30 @@
                 ? `${chipBase} bg-transparent text-slate-300 hover:bg-slate-100 hover:text-slate-700 ${focusRing}`
                 : `${chipBase} bg-slate-100 text-slate-600 hover:bg-slate-200 ${focusRing}`;
           btn.addEventListener("click", () => setBounds(task.id, day));
-          row.append(btn);
+          chips.append(btn);
         }
 
+        const carets = document.createElement("div");
+        carets.className = "pointer-events-none absolute inset-0";
+        for (const value of low != null && high != null && Math.abs(low - high) < 1e-9 ? [low] : [low, high]) {
+          const pct = caretPercent(value, series);
+          if (pct == null) continue;
+          const caret = document.createElement("div");
+          caret.className = "bound-caret";
+          caret.style.left = `${pct}%`;
+          caret.title = formatEstimateInput(value);
+          carets.append(caret);
+        }
+
+        track.append(chips, carets);
+        row.append(boundInput(task, "low"), track, boundInput(task, "high"));
         return row;
       }
 
       function render(options = {}) {
         const {
           focusTaskId = null,
+          focusEstimate = null,
           focusAdd: shouldFocusAdd = false,
           preserveOutput = false,
         } = options;
@@ -2006,8 +2189,18 @@
 
         renderUndo();
 
-        if (focusTaskId != null) {
-          const input = taskListEl.querySelector(`[data-task-id="${focusTaskId}"] input`);
+        if (focusEstimate != null) {
+          const input = taskListEl.querySelector(
+            `[data-task-id="${focusEstimate.id}"] [data-bound="${focusEstimate.which}"]`,
+          );
+          if (input) {
+            input.focus();
+            input.select();
+          }
+        } else if (focusTaskId != null) {
+          const input = taskListEl.querySelector(
+            `[data-task-id="${focusTaskId}"] input:not([data-bound])`,
+          );
           if (input) input.focus();
         } else if (shouldFocusAdd) {
           focusAdd();
