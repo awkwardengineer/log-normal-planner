@@ -19,6 +19,9 @@
         column-gap: var(--chart-gap);
         row-gap: 0.25rem;
       }
+      .estimate-row {
+        width: var(--estimate-row-w, 24rem);
+      }
       @keyframes spin {
         to {
           transform: rotate(360deg);
@@ -41,57 +44,107 @@
       </header>
 
       <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
-          <h2 id="tasks-heading" class="text-sm font-medium text-slate-700">Tasks</h2>
-          <div class="ml-auto flex flex-col items-end gap-1.5">
-            <label for="start-date" class="flex items-center gap-2 text-sm text-slate-600">
-              Start date
+        <div class="flex items-start gap-3 border-b border-slate-100 px-4 py-3">
+          <div class="relative flex flex-col gap-0.5">
+            <label for="start-date" class="text-sm font-medium leading-5 text-slate-700">Start date</label>
+            <div class="flex items-center gap-1">
               <input
                 id="start-date"
                 type="date"
                 class="rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-900 outline-none focus:border-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
               />
-            </label>
-            <label for="weekends-toggle" class="flex items-center gap-2 text-sm text-slate-600">
-              <input
-                id="weekends-toggle"
-                type="checkbox"
-                checked
-                class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
-              />
-              Skip weekends
-            </label>
-            <label for="federal-holidays-toggle" class="flex items-center gap-2 text-sm text-slate-600">
-              <input
-                id="federal-holidays-toggle"
-                type="checkbox"
-                class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
-              />
-              Federal holidays
-            </label>
-            <label for="winter-break-toggle" class="flex items-center gap-2 text-sm text-slate-600">
-              <input
-                id="winter-break-toggle"
-                type="checkbox"
-                class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
-              />
-              Winter break
-            </label>
-            <div id="unit-chips" class="flex gap-1" role="group" aria-label="Estimate unit">
-              <button type="button" data-unit="h" class="rounded-md px-2 py-0.5 text-xs font-medium">Hours</button>
-              <button type="button" data-unit="d" class="rounded-md px-2 py-0.5 text-xs font-medium">Days</button>
-              <button type="button" data-unit="w" class="rounded-md px-2 py-0.5 text-xs font-medium">Weeks</button>
+              <button
+                id="calendar-menu-btn"
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+                aria-label="Work calendar options"
+                aria-haspopup="true"
+                aria-expanded="false"
+                aria-controls="calendar-menu"
+              >
+                <span aria-hidden="true" class="text-lg leading-none">⋯</span>
+              </button>
+            </div>
+            <div
+              id="calendar-menu"
+              class="absolute left-0 top-full z-20 mt-1 hidden min-w-[12rem] rounded-md border border-slate-200 bg-white p-2 shadow-sm"
+              role="menu"
+              hidden
+            >
+              <label for="weekends-toggle" class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+                <input
+                  id="weekends-toggle"
+                  type="checkbox"
+                  checked
+                  class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+                />
+                Skip weekends
+              </label>
+              <label for="federal-holidays-toggle" class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+                <input
+                  id="federal-holidays-toggle"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+                />
+                Federal holidays
+              </label>
+              <label for="winter-break-toggle" class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+                <input
+                  id="winter-break-toggle"
+                  type="checkbox"
+                  class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+                />
+                Winter break
+              </label>
             </div>
           </div>
+          <h2 id="tasks-heading" class="text-sm font-medium leading-5 text-slate-700">Tasks</h2>
         </div>
 
         <div
           id="column-headers"
-          class="hidden grid items-center gap-x-8 border-b border-slate-100 px-4 py-2 text-xs font-medium text-slate-500 [grid-template-columns:minmax(28rem,1fr)_auto_auto]"
+          class="hidden grid items-start gap-x-8 border-b border-slate-100 px-4 py-2 text-xs font-medium text-slate-500 [grid-template-columns:minmax(28rem,1fr)_auto_auto]"
         >
-          <span class="border-r border-slate-100 pr-6 text-sm font-medium text-slate-700">Tasks</span>
-          <span class="flex w-[24rem] flex-col gap-0.5">
-            <span class="text-sm font-medium text-slate-700">Estimate</span>
+          <span class="border-r border-slate-100 pr-6 text-sm font-medium leading-5 text-slate-700">Tasks</span>
+          <span class="estimate-row flex flex-col gap-0.5">
+            <span class="flex h-5 items-baseline gap-2">
+              <span class="text-sm font-medium leading-5 text-slate-700">Estimates</span>
+              <span class="relative">
+                <button
+                  id="estimate-settings-btn"
+                  type="button"
+                  class="rounded-md px-1 py-0 text-xs font-medium leading-5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-controls="estimate-settings-menu"
+                >
+                  <span id="estimate-settings-label">Fibonacci · Days</span>
+                </button>
+                <div
+                  id="estimate-settings-menu"
+                  class="absolute left-0 top-full z-20 mt-1 hidden min-w-[14rem] rounded-md border border-slate-200 bg-white p-3 shadow-sm"
+                  hidden
+                >
+                  <div class="flex flex-col gap-2">
+                    <div class="flex flex-col gap-1">
+                      <span class="text-[11px] font-normal uppercase tracking-wide text-slate-400">Scale</span>
+                      <span id="method-chips" class="flex gap-1" role="group" aria-label="Estimate scale">
+                        <button type="button" data-method="fib" class="rounded-md px-2 py-0.5 text-xs font-medium">Fibonacci</button>
+                        <button type="button" data-method="lin" class="rounded-md px-2 py-0.5 text-xs font-medium">Linear</button>
+                      </span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <span class="text-[11px] font-normal uppercase tracking-wide text-slate-400">Unit</span>
+                      <span id="unit-chips" class="flex gap-1" role="group" aria-label="Estimate unit">
+                        <button type="button" data-unit="h" class="rounded-md px-2 py-0.5 text-xs font-medium">Hours</button>
+                        <button type="button" data-unit="d" class="rounded-md px-2 py-0.5 text-xs font-medium">Days</button>
+                        <button type="button" data-unit="w" class="rounded-md px-2 py-0.5 text-xs font-medium">Weeks</button>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </span>
+            </span>
             <span class="font-normal text-slate-400">Enter a range (recommended) or a single estimate.</span>
           </span>
           <span class="w-10 border-l border-slate-100 pl-3">
@@ -303,10 +356,16 @@
       const taskListEl = document.getElementById("task-list");
       const tasksHeadingEl = document.getElementById("tasks-heading");
       const startDateEl = document.getElementById("start-date");
+      const calendarMenuBtnEl = document.getElementById("calendar-menu-btn");
+      const calendarMenuEl = document.getElementById("calendar-menu");
       const weekendsToggleEl = document.getElementById("weekends-toggle");
       const federalHolidaysToggleEl = document.getElementById("federal-holidays-toggle");
       const winterBreakToggleEl = document.getElementById("winter-break-toggle");
       const columnHeadersEl = document.getElementById("column-headers");
+      const estimateSettingsBtnEl = document.getElementById("estimate-settings-btn");
+      const estimateSettingsMenuEl = document.getElementById("estimate-settings-menu");
+      const estimateSettingsLabelEl = document.getElementById("estimate-settings-label");
+      const methodChipsEl = document.getElementById("method-chips");
       const unitChipsEl = document.getElementById("unit-chips");
       const emptyStateEl = document.getElementById("empty-state");
       const addTaskBottomBtn = document.getElementById("add-task-bottom");
@@ -344,7 +403,10 @@
       const scheduleNoteEl = document.getElementById("schedule-note");
       const bufferTargetChipsEl = document.getElementById("buffer-target-chips");
 
-      const ESTIMATE_DAYS = [0.5, 1, 2, 3, 5, 8, 13, 21, 34];
+      const FIB_DAYS = [0.5, 1, 2, 3, 5, 8, 13, 21, 34];
+      const LIN_DAYS = [0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+      const ESTIMATE_METHODS = ["fib", "lin"];
+      const DEFAULT_METHOD = "fib";
       const HOURS_PER_DAY = 8;
       const DAYS_PER_WEEK = 5;
       const ESTIMATE_UNITS = ["h", "d", "w"];
@@ -375,6 +437,7 @@
       let weekends = DEFAULT_WEEKENDS;
       let federalHolidays = DEFAULT_FEDERAL_HOLIDAYS;
       let winterBreak = DEFAULT_WINTER_BREAK;
+      let estimateMethod = DEFAULT_METHOD;
       let estimateUnit = DEFAULT_UNIT;
       let bufferTarget = DEFAULT_BUFFER_TARGET;
       let runs = DEFAULT_RUNS;
@@ -427,6 +490,15 @@
       function parseUnit(value) {
         const unit = String(value ?? DEFAULT_UNIT);
         return ESTIMATE_UNITS.includes(unit) ? unit : DEFAULT_UNIT;
+      }
+
+      function parseMethod(value) {
+        const method = String(value ?? DEFAULT_METHOD);
+        return ESTIMATE_METHODS.includes(method) ? method : DEFAULT_METHOD;
+      }
+
+      function estimateDays(method = estimateMethod) {
+        return method === "lin" ? LIN_DAYS : FIB_DAYS;
       }
 
       function parseBufferTarget(value) {
@@ -550,6 +622,48 @@
         weekendsToggleEl.checked = weekends;
         federalHolidaysToggleEl.checked = federalHolidays;
         winterBreakToggleEl.checked = winterBreak;
+        const customized =
+          weekends !== DEFAULT_WEEKENDS ||
+          federalHolidays !== DEFAULT_FEDERAL_HOLIDAYS ||
+          winterBreak !== DEFAULT_WINTER_BREAK;
+        calendarMenuBtnEl.classList.toggle("text-slate-900", customized);
+        calendarMenuBtnEl.classList.toggle("text-slate-500", !customized);
+      }
+
+      function setCalendarMenuOpen(open) {
+        calendarMenuEl.classList.toggle("hidden", !open);
+        calendarMenuEl.hidden = !open;
+        calendarMenuBtnEl.setAttribute("aria-expanded", String(open));
+        if (open) setEstimateSettingsOpen(false);
+      }
+
+      function toggleCalendarMenu() {
+        setCalendarMenuOpen(calendarMenuEl.hidden);
+      }
+
+      function methodLabel(method = estimateMethod) {
+        return method === "lin" ? "Linear" : "Fibonacci";
+      }
+
+      function unitLabel(unit = estimateUnit) {
+        if (unit === "h") return "Hours";
+        if (unit === "w") return "Weeks";
+        return "Days";
+      }
+
+      function renderEstimateSettingsLabel() {
+        estimateSettingsLabelEl.textContent = `${methodLabel()} · ${unitLabel()}`;
+        estimateSettingsBtnEl.setAttribute(
+          "aria-label",
+          `Estimate settings: ${methodLabel()}, ${unitLabel()}`,
+        );
+      }
+
+      function setEstimateSettingsOpen(open) {
+        estimateSettingsMenuEl.classList.toggle("hidden", !open);
+        estimateSettingsMenuEl.hidden = !open;
+        estimateSettingsBtnEl.setAttribute("aria-expanded", String(open));
+        if (open) setCalendarMenuOpen(false);
       }
 
       function renderUnitChips() {
@@ -561,6 +675,30 @@
             ? `rounded-md bg-slate-900 px-2 py-0.5 text-xs font-medium text-white ${focusRingOnDark}`
             : `rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 ${focusRing}`;
         }
+        renderEstimateSettingsLabel();
+      }
+
+      function renderMethodChips() {
+        for (const btn of methodChipsEl.querySelectorAll("[data-method]")) {
+          const selected = btn.getAttribute("data-method") === estimateMethod;
+          btn.setAttribute("aria-pressed", String(selected));
+          btn.className = selected
+            ? `rounded-md bg-slate-900 px-2 py-0.5 text-xs font-medium text-white ${focusRingOnDark}`
+            : `rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 ${focusRing}`;
+        }
+        document.documentElement.style.setProperty(
+          "--estimate-row-w",
+          estimateMethod === "lin" ? "34rem" : "24rem",
+        );
+        renderEstimateSettingsLabel();
+      }
+
+      function setEstimateMethod(next) {
+        const method = parseMethod(next);
+        if (method === estimateMethod) return;
+        estimateMethod = method;
+        // Keep existing numbers; chip highlighting and switch policy TBD.
+        render({ preserveOutput: true });
       }
 
       function setEstimateUnit(next) {
@@ -677,9 +815,10 @@
         };
       }
 
-      function normalizeEstimate(mode, p90) {
-        let nextMode = parseDay(mode, ESTIMATE_DAYS);
-        let nextP90 = parseDay(p90, ESTIMATE_DAYS);
+      function normalizeEstimate(mode, p90, method = estimateMethod) {
+        const series = estimateDays(method);
+        let nextMode = parseDay(mode, series);
+        let nextP90 = parseDay(p90, series);
         if (nextMode != null && nextP90 != null && nextMode > nextP90) {
           [nextMode, nextP90] = [nextP90, nextMode];
         }
@@ -705,6 +844,7 @@
           w: weekends ? 1 : 0,
           h: federalHolidays ? 1 : 0,
           b: winterBreak ? 1 : 0,
+          m: estimateMethod,
           u: estimateUnit,
           c: bufferTarget,
           t: tasks.map((task) => [task.name, task.mode, task.p90]),
@@ -722,6 +862,7 @@
             weekends: DEFAULT_WEEKENDS,
             federalHolidays: DEFAULT_FEDERAL_HOLIDAYS,
             winterBreak: DEFAULT_WINTER_BREAK,
+            estimateMethod: DEFAULT_METHOD,
             estimateUnit: DEFAULT_UNIT,
             bufferTarget: DEFAULT_BUFFER_TARGET,
           };
@@ -730,6 +871,7 @@
           const json = new TextDecoder().decode(base64UrlToBytes(raw));
           const data = JSON.parse(json);
           if (!Array.isArray(data.t)) return null;
+          const estimateMethod = parseMethod(data.m);
           let records = null;
           if (data.v === 1) {
             records = data.t.map((name) => ({
@@ -742,7 +884,10 @@
               const name = Array.isArray(item) ? item[0] : item?.n;
               const mode = Array.isArray(item) ? item[1] : item?.m;
               const p90 = Array.isArray(item) ? item[2] : item?.p;
-              return { name: String(name ?? ""), ...normalizeEstimate(mode, p90) };
+              return {
+                name: String(name ?? ""),
+                ...normalizeEstimate(mode, p90, estimateMethod),
+              };
             });
           }
           if (!records) return null;
@@ -753,6 +898,7 @@
             weekends: parseFlag(data.w, DEFAULT_WEEKENDS),
             federalHolidays: parseFlag(data.h, DEFAULT_FEDERAL_HOLIDAYS),
             winterBreak: parseFlag(data.b, DEFAULT_WINTER_BREAK),
+            estimateMethod,
             estimateUnit: parseUnit(data.u),
             bufferTarget: parseBufferTarget(data.c),
           };
@@ -768,6 +914,7 @@
           weekends !== DEFAULT_WEEKENDS ||
           federalHolidays !== DEFAULT_FEDERAL_HOLIDAYS ||
           winterBreak !== DEFAULT_WINTER_BREAK ||
+          estimateMethod !== DEFAULT_METHOD ||
           estimateUnit !== DEFAULT_UNIT ||
           bufferTarget !== DEFAULT_BUFFER_TARGET
         );
@@ -817,6 +964,7 @@
           weekends = DEFAULT_WEEKENDS;
           federalHolidays = DEFAULT_FEDERAL_HOLIDAYS;
           winterBreak = DEFAULT_WINTER_BREAK;
+          estimateMethod = DEFAULT_METHOD;
           estimateUnit = DEFAULT_UNIT;
           bufferTarget = DEFAULT_BUFFER_TARGET;
         } else {
@@ -826,6 +974,7 @@
           weekends = doc.weekends;
           federalHolidays = doc.federalHolidays;
           winterBreak = doc.winterBreak;
+          estimateMethod = doc.estimateMethod;
           estimateUnit = doc.estimateUnit;
           bufferTarget = doc.bufferTarget;
         }
@@ -888,10 +1037,21 @@
         writeHash();
       }
 
+      function closerToLow(value, low, high, series) {
+        const valueIndex = series.indexOf(value);
+        const lowIndex = series.indexOf(low);
+        const highIndex = series.indexOf(high);
+        if (valueIndex >= 0 && lowIndex >= 0 && highIndex >= 0) {
+          return valueIndex - lowIndex < highIndex - valueIndex;
+        }
+        return value - low < high - value;
+      }
+
       function setBounds(id, days) {
         const task = tasks.find((t) => t.id === id);
         if (!task) return;
-        const value = parseDay(days, ESTIMATE_DAYS);
+        const series = estimateDays();
+        const value = parseDay(days, series);
         if (value == null) return;
         const low = task.mode ?? task.p90;
         const high = task.p90 ?? task.mode;
@@ -922,10 +1082,7 @@
         } else if (value === high) {
           task.mode = low;
           task.p90 = low;
-        } else if (
-          ESTIMATE_DAYS.indexOf(value) - ESTIMATE_DAYS.indexOf(low) <
-          ESTIMATE_DAYS.indexOf(high) - ESTIMATE_DAYS.indexOf(value)
-        ) {
+        } else if (closerToLow(value, low, high, series)) {
           task.mode = value;
           task.p90 = high;
         } else {
@@ -1733,11 +1890,13 @@
       }
 
       function estimateGroup(task) {
+        const series = estimateDays();
         const low = task.mode;
         const high = task.p90;
         const isSet = low != null || high != null;
         const row = document.createElement("div");
-        row.className = "grid w-[24rem] grid-cols-9 gap-1";
+        row.className = "estimate-row grid gap-1";
+        row.style.gridTemplateColumns = `repeat(${series.length}, minmax(0, 1fr))`;
         row.setAttribute("role", "group");
         row.setAttribute(
           "aria-label",
@@ -1746,7 +1905,7 @@
         const chipBase =
           "box-border inline-flex h-8 w-full items-center justify-center rounded-md border border-transparent px-0 text-sm font-medium tabular-nums";
 
-        for (const day of ESTIMATE_DAYS) {
+        for (const day of series) {
           const isEnd = day === low || day === high;
           const inBetween = low != null && high != null && day > low && day < high;
           const btn = document.createElement("button");
@@ -1769,13 +1928,18 @@
       }
 
       function render(options = {}) {
-        const { focusTaskId = null, focusAdd: shouldFocusAdd = false } = options;
+        const {
+          focusTaskId = null,
+          focusAdd: shouldFocusAdd = false,
+          preserveOutput = false,
+        } = options;
         taskListEl.replaceChildren();
         const hasTasks = tasks.length > 0;
         emptyStateEl.classList.toggle("hidden", hasTasks);
         tasksHeadingEl.classList.toggle("hidden", hasTasks);
         columnHeadersEl.classList.toggle("hidden", !hasTasks);
         addTaskBottomBtn.classList.toggle("hidden", !hasTasks);
+        renderMethodChips();
         renderUnitChips();
         renderBufferChips();
 
@@ -1850,7 +2014,7 @@
         }
 
         writeHash();
-        invalidateOutput();
+        if (!preserveOutput) invalidateOutput();
       }
 
       function setStartDate(value) {
@@ -1885,11 +2049,34 @@
       emptyStateEl.addEventListener("click", () => addTask());
       undoDeleteBtn.addEventListener("click", undoDelete);
       startDateEl.addEventListener("change", () => setStartDate(startDateEl.value));
+      calendarMenuBtnEl.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleCalendarMenu();
+      });
+      calendarMenuEl.addEventListener("click", (event) => event.stopPropagation());
+      estimateSettingsBtnEl.addEventListener("click", (event) => {
+        event.stopPropagation();
+        setEstimateSettingsOpen(estimateSettingsMenuEl.hidden);
+      });
+      estimateSettingsMenuEl.addEventListener("click", (event) => event.stopPropagation());
+      document.addEventListener("click", () => {
+        setCalendarMenuOpen(false);
+        setEstimateSettingsOpen(false);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        setCalendarMenuOpen(false);
+        setEstimateSettingsOpen(false);
+      });
       weekendsToggleEl.addEventListener("change", () => setWeekends(weekendsToggleEl.checked));
       federalHolidaysToggleEl.addEventListener("change", () =>
         setFederalHolidays(federalHolidaysToggleEl.checked),
       );
       winterBreakToggleEl.addEventListener("change", () => setWinterBreak(winterBreakToggleEl.checked));
+      methodChipsEl.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-method]");
+        if (btn) setEstimateMethod(btn.getAttribute("data-method"));
+      });
       unitChipsEl.addEventListener("click", (event) => {
         const btn = event.target.closest("[data-unit]");
         if (btn) setEstimateUnit(btn.getAttribute("data-unit"));
