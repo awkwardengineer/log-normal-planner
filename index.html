@@ -95,6 +95,7 @@
                 <input
                   id="federal-holidays-toggle"
                   type="checkbox"
+                  checked
                   class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
                 />
                 Federal holidays
@@ -103,13 +104,13 @@
                 <input
                   id="winter-break-toggle"
                   type="checkbox"
+                  checked
                   class="h-4 w-4 rounded border-slate-300 accent-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
                 />
                 Winter break
               </label>
             </div>
           </div>
-          <h2 id="tasks-heading" class="text-sm font-medium leading-5 text-slate-700">Tasks</h2>
         </div>
 
         <div
@@ -129,7 +130,7 @@
                   aria-expanded="false"
                   aria-controls="estimate-settings-menu"
                 >
-                  <span id="estimate-settings-label">Fibonacci · Days</span>
+                  <span id="estimate-settings-label">Fibonacci · Days · Mode · P95</span>
                 </button>
                 <div
                   id="estimate-settings-menu"
@@ -150,6 +151,20 @@
                         <button type="button" data-unit="h" class="rounded-md px-2 py-0.5 text-xs font-medium">Hours</button>
                         <button type="button" data-unit="d" class="rounded-md px-2 py-0.5 text-xs font-medium">Days</button>
                         <button type="button" data-unit="w" class="rounded-md px-2 py-0.5 text-xs font-medium">Weeks</button>
+                      </span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <span class="text-[11px] font-normal uppercase tracking-wide text-slate-400">Low</span>
+                      <span id="low-chips" class="flex gap-1" role="group" aria-label="Low bound statistic">
+                        <button type="button" data-low="mode" class="rounded-md px-2 py-0.5 text-xs font-medium">Mode</button>
+                        <button type="button" data-low="avg" class="rounded-md px-2 py-0.5 text-xs font-medium">Average</button>
+                      </span>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                      <span class="text-[11px] font-normal uppercase tracking-wide text-slate-400">High</span>
+                      <span id="high-chips" class="flex gap-1" role="group" aria-label="High bound percentile">
+                        <button type="button" data-high="90" class="rounded-md px-2 py-0.5 text-xs font-medium">P90</button>
+                        <button type="button" data-high="95" class="rounded-md px-2 py-0.5 text-xs font-medium">P95</button>
                       </span>
                     </div>
                   </div>
@@ -176,13 +191,6 @@
           <p id="usage" class="ml-auto text-sm tabular-nums text-slate-500">0 bytes</p>
         </div>
 
-        <button
-          id="empty-state"
-          type="button"
-          class="m-4 w-[calc(100%-2rem)] rounded-lg border border-dashed border-slate-300 px-4 py-8 text-center text-sm text-slate-600 hover:border-slate-400 hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
-        >
-          + Add a task to get started
-        </button>
       </section>
 
       <div
@@ -206,55 +214,37 @@
         <div class="border-b border-slate-100 px-4 py-3">
           <h2 class="text-sm font-medium text-slate-700">Summary</h2>
         </div>
-        <div id="output-stats" class="flex flex-wrap gap-8 px-4 py-3">
-          <div>
-            <h3 class="text-sm font-medium text-slate-700">Your estimates</h3>
-            <p class="mt-0.5 text-xs text-slate-500">Business days</p>
-            <div class="mt-2 flex flex-col items-start gap-2">
-              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
-                <span class="text-xs font-medium text-slate-500">Sum of best cases</span>
-                <span id="stat-sum-mode" class="text-sm font-medium tabular-nums text-slate-900">—</span>
+        <p class="px-4 pt-3 text-sm text-slate-500">
+          Simulation percentiles land between padding every task at its best case and at its worst case.
+        </p>
+        <div id="output-stats" class="px-4 pb-4 pt-2">
+          <div class="flex w-full max-w-lg flex-col gap-2">
+            <div class="flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
+              <span class="text-xs font-medium text-slate-500">Sum of best cases</span>
+              <span id="stat-sum-mode" class="ml-auto text-sm font-medium tabular-nums text-slate-900">—</span>
+              <span class="w-16 text-right text-xs text-slate-400">days</span>
+            </div>
+            <div class="flex flex-col gap-2 border-l-2 border-slate-200 py-0.5 pl-3">
+              <div class="flex h-8 items-center gap-2 rounded-md bg-blue-50 px-2.5">
+                <span class="text-xs font-medium text-blue-700">Median</span>
+                <span id="stat-sim-median" class="ml-auto text-sm font-medium tabular-nums text-blue-800">—</span>
+                <span id="stat-median-date" class="w-16 text-right text-sm font-medium text-blue-800">—</span>
               </div>
-              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
-                <span class="text-xs font-medium text-slate-500">Sum of worst cases</span>
-                <span id="stat-sum-p90" class="text-sm font-medium tabular-nums text-slate-900">—</span>
+              <div class="flex h-8 items-center gap-2 rounded-md bg-amber-50 px-2.5">
+                <span class="text-xs font-medium text-amber-800">P<sub>70</sub></span>
+                <span id="stat-sim-p70" class="ml-auto text-sm font-medium tabular-nums text-amber-900">—</span>
+                <span id="stat-p70-date" class="w-16 text-right text-sm font-medium text-amber-900">—</span>
+              </div>
+              <div class="flex h-8 items-center gap-2 rounded-md bg-red-50 px-2.5">
+                <span class="text-xs font-medium text-red-700">P<sub>90</sub></span>
+                <span id="stat-sim-p90" class="ml-auto text-sm font-medium tabular-nums text-red-800">—</span>
+                <span id="stat-p90-date" class="w-16 text-right text-sm font-medium text-red-800">—</span>
               </div>
             </div>
-          </div>
-          <div>
-            <h3 class="text-sm font-medium text-slate-700">Simulation</h3>
-            <p class="mt-0.5 text-xs text-slate-500">Business days</p>
-            <div class="mt-2 flex flex-col items-start gap-2">
-              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-blue-50 px-2.5">
-                <span class="text-xs font-medium text-blue-700">Median</span>
-                <span id="stat-sim-median" class="text-sm font-medium tabular-nums text-blue-800">—</span>
-              </div>
-              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-amber-50 px-2.5">
-                <span class="text-xs font-medium text-amber-800">P<sub>70</sub></span>
-                <span id="stat-sim-p70" class="text-sm font-medium tabular-nums text-amber-900">—</span>
-              </div>
-              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-red-50 px-2.5">
-                <span class="text-xs font-medium text-red-700">P<sub>90</sub></span>
-                <span id="stat-sim-p90" class="text-sm font-medium tabular-nums text-red-800">—</span>
-              </div>
-            </div>
-          </div>
-          <div>
-            <h3 class="text-sm font-medium text-slate-700">Finishes on</h3>
-            <p class="mt-0.5 text-xs text-slate-500">Calendar date</p>
-            <div class="mt-2 flex flex-col items-start gap-2">
-              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-blue-50 px-2.5">
-                <span class="text-xs font-medium text-blue-700">Median</span>
-                <span id="stat-median-date" class="text-sm font-medium text-blue-800">—</span>
-              </div>
-              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-amber-50 px-2.5">
-                <span class="text-xs font-medium text-amber-800">P<sub>70</sub></span>
-                <span id="stat-p70-date" class="text-sm font-medium text-amber-900">—</span>
-              </div>
-              <div class="inline-flex h-8 items-center gap-2 rounded-md bg-red-50 px-2.5">
-                <span class="text-xs font-medium text-red-700">P<sub>90</sub></span>
-                <span id="stat-p90-date" class="text-sm font-medium text-red-800">—</span>
-              </div>
+            <div class="flex h-8 items-center gap-2 rounded-md bg-slate-100 px-2.5">
+              <span class="text-xs font-medium text-slate-500">Sum of worst cases</span>
+              <span id="stat-sum-p90" class="ml-auto text-sm font-medium tabular-nums text-slate-900">—</span>
+              <span class="w-16 text-right text-xs text-slate-400">days</span>
             </div>
           </div>
         </div>
@@ -365,7 +355,6 @@
 
     <script>
       const taskListEl = document.getElementById("task-list");
-      const tasksHeadingEl = document.getElementById("tasks-heading");
       const startDateEl = document.getElementById("start-date");
       const calendarMenuBtnEl = document.getElementById("calendar-menu-btn");
       const calendarMenuEl = document.getElementById("calendar-menu");
@@ -378,7 +367,8 @@
       const estimateSettingsLabelEl = document.getElementById("estimate-settings-label");
       const methodChipsEl = document.getElementById("method-chips");
       const unitChipsEl = document.getElementById("unit-chips");
-      const emptyStateEl = document.getElementById("empty-state");
+      const lowChipsEl = document.getElementById("low-chips");
+      const highChipsEl = document.getElementById("high-chips");
       const addTaskBottomBtn = document.getElementById("add-task-bottom");
       const usageEl = document.getElementById("usage");
       const undoToastEl = document.getElementById("undo-toast");
@@ -422,13 +412,20 @@
       const DAYS_PER_WEEK = 5;
       const ESTIMATE_UNITS = ["h", "d", "w"];
       const DEFAULT_UNIT = "d";
+      const LOW_KINDS = ["mode", "avg"];
+      const DEFAULT_LOW_KIND = "mode";
+      const HIGH_TARGETS = [90, 95];
+      const DEFAULT_HIGH_TARGET = 95;
       const BUFFER_TARGETS = [70, 90];
       const DEFAULT_BUFFER_TARGET = 90;
       const DEFAULT_RUNS = 10000;
       const DEFAULT_WEEKENDS = true;
-      const DEFAULT_FEDERAL_HOLIDAYS = false;
-      const DEFAULT_WINTER_BREAK = false;
-      const Z90 = 1.2815515655446004;
+      const DEFAULT_FEDERAL_HOLIDAYS = true;
+      const DEFAULT_WINTER_BREAK = true;
+      const HIGH_Z = {
+        90: 1.2815515655446004,
+        95: 1.6448536269514722,
+      };
 
       const chartGridStyle = getComputedStyle(document.documentElement);
       const CHART_GUTTER =
@@ -450,6 +447,8 @@
       let winterBreak = DEFAULT_WINTER_BREAK;
       let estimateMethod = DEFAULT_METHOD;
       let estimateUnit = DEFAULT_UNIT;
+      let lowKind = DEFAULT_LOW_KIND;
+      let highTarget = DEFAULT_HIGH_TARGET;
       let bufferTarget = DEFAULT_BUFFER_TARGET;
       let runs = DEFAULT_RUNS;
       let undo = null;
@@ -551,8 +550,22 @@
         return ESTIMATE_METHODS.includes(method) ? method : DEFAULT_METHOD;
       }
 
+      function parseHighTarget(value) {
+        const target = Number(value);
+        return HIGH_TARGETS.includes(target) ? target : DEFAULT_HIGH_TARGET;
+      }
+
+      function parseLowKind(value) {
+        const kind = String(value ?? DEFAULT_LOW_KIND);
+        return LOW_KINDS.includes(kind) ? kind : DEFAULT_LOW_KIND;
+      }
+
       function estimateDays(method = estimateMethod) {
         return method === "lin" ? LIN_DAYS : FIB_DAYS;
+      }
+
+      function highZ(target = highTarget) {
+        return HIGH_Z[target] ?? HIGH_Z[DEFAULT_HIGH_TARGET];
       }
 
       function parseBufferTarget(value) {
@@ -705,11 +718,19 @@
         return "Days";
       }
 
+      function lowLabel(kind = lowKind) {
+        return kind === "avg" ? "Average" : "Mode";
+      }
+
+      function highLabel(target = highTarget) {
+        return `P${target}`;
+      }
+
       function renderEstimateSettingsLabel() {
-        estimateSettingsLabelEl.textContent = `${methodLabel()} · ${unitLabel()}`;
+        estimateSettingsLabelEl.textContent = `${methodLabel()} · ${unitLabel()} · ${lowLabel()} · ${highLabel()}`;
         estimateSettingsBtnEl.setAttribute(
           "aria-label",
-          `Estimate settings: ${methodLabel()}, ${unitLabel()}`,
+          `Estimate settings: ${methodLabel()}, ${unitLabel()}, ${lowLabel()}, ${highLabel()}`,
         );
       }
 
@@ -760,6 +781,48 @@
         if (unit === estimateUnit) return;
         estimateUnit = unit;
         renderUnitChips();
+        writeHash();
+        invalidateOutput();
+      }
+
+      function renderLowChips() {
+        for (const btn of lowChipsEl.querySelectorAll("[data-low]")) {
+          const selected = btn.getAttribute("data-low") === lowKind;
+          btn.setAttribute("aria-pressed", String(selected));
+          btn.className = selected
+            ? `rounded-md bg-slate-900 px-2 py-0.5 text-xs font-medium text-white ${focusRingOnDark}`
+            : `rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 ${focusRing}`;
+        }
+        renderEstimateSettingsLabel();
+      }
+
+      function setLowKind(next) {
+        const kind = parseLowKind(next);
+        if (kind === lowKind) return;
+        lowKind = kind;
+        // Keep the numbers; the low bound now means mode or average.
+        renderLowChips();
+        writeHash();
+        invalidateOutput();
+      }
+
+      function renderHighChips() {
+        for (const btn of highChipsEl.querySelectorAll("[data-high]")) {
+          const selected = Number(btn.getAttribute("data-high")) === highTarget;
+          btn.setAttribute("aria-pressed", String(selected));
+          btn.className = selected
+            ? `rounded-md bg-slate-900 px-2 py-0.5 text-xs font-medium text-white ${focusRingOnDark}`
+            : `rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 ${focusRing}`;
+        }
+        renderEstimateSettingsLabel();
+      }
+
+      function setHighTarget(next) {
+        const target = parseHighTarget(next);
+        if (target === highTarget) return;
+        highTarget = target;
+        // Keep the numbers; the high bound now means a different percentile.
+        renderHighChips();
         writeHash();
         invalidateOutput();
       }
@@ -899,6 +962,8 @@
           b: winterBreak ? 1 : 0,
           m: estimateMethod,
           u: estimateUnit,
+          l: lowKind,
+          p: highTarget,
           c: bufferTarget,
           t: tasks.map((task) => [task.name, task.mode, task.p90]),
         });
@@ -917,6 +982,8 @@
             winterBreak: DEFAULT_WINTER_BREAK,
             estimateMethod: DEFAULT_METHOD,
             estimateUnit: DEFAULT_UNIT,
+            lowKind: DEFAULT_LOW_KIND,
+            highTarget: DEFAULT_HIGH_TARGET,
             bufferTarget: DEFAULT_BUFFER_TARGET,
           };
         }
@@ -953,6 +1020,11 @@
             winterBreak: parseFlag(data.b, DEFAULT_WINTER_BREAK),
             estimateMethod,
             estimateUnit: parseUnit(data.u),
+            lowKind: parseLowKind(data.l),
+            // Older hashes omitted `p` and meant P90; new empty state defaults to P95.
+            highTarget: Object.prototype.hasOwnProperty.call(data, "p")
+              ? parseHighTarget(data.p)
+              : 90,
             bufferTarget: parseBufferTarget(data.c),
           };
         } catch {
@@ -960,15 +1032,23 @@
         }
       }
 
+      function hasTaskContent() {
+        return tasks.some(
+          (task) => task.name.trim() || task.mode != null || task.p90 != null,
+        );
+      }
+
       function hasHashState() {
         return (
-          tasks.length > 0 ||
+          hasTaskContent() ||
           startDate !== todayISO() ||
           weekends !== DEFAULT_WEEKENDS ||
           federalHolidays !== DEFAULT_FEDERAL_HOLIDAYS ||
           winterBreak !== DEFAULT_WINTER_BREAK ||
           estimateMethod !== DEFAULT_METHOD ||
           estimateUnit !== DEFAULT_UNIT ||
+          lowKind !== DEFAULT_LOW_KIND ||
+          highTarget !== DEFAULT_HIGH_TARGET ||
           bufferTarget !== DEFAULT_BUFFER_TARGET
         );
       }
@@ -1007,6 +1087,13 @@
         nextId = tasks.length + 1;
       }
 
+      function ensureStarterTask() {
+        if (tasks.length > 0) return false;
+        nextId = 1;
+        tasks = [createTask()];
+        return true;
+      }
+
       function loadFromHash() {
         applyingHash = true;
         const doc = decodeDocument(location.hash);
@@ -1019,6 +1106,8 @@
           winterBreak = DEFAULT_WINTER_BREAK;
           estimateMethod = DEFAULT_METHOD;
           estimateUnit = DEFAULT_UNIT;
+          lowKind = DEFAULT_LOW_KIND;
+          highTarget = DEFAULT_HIGH_TARGET;
           bufferTarget = DEFAULT_BUFFER_TARGET;
         } else {
           applyTasks(doc.records);
@@ -1029,13 +1118,17 @@
           winterBreak = doc.winterBreak;
           estimateMethod = doc.estimateMethod;
           estimateUnit = doc.estimateUnit;
+          lowKind = doc.lowKind;
+          highTarget = doc.highTarget;
           bufferTarget = doc.bufferTarget;
         }
+        const seeded = ensureStarterTask();
         runsSliderEl.value = String(runs);
         runsLabelEl.textContent = runs.toLocaleString("en-US");
         startDateEl.value = startDate;
         renderCalendarToggles();
         applyingHash = false;
+        return seeded;
       }
 
       function createTask(name = "") {
@@ -1068,11 +1161,12 @@
           }, 5000),
         };
 
+        if (tasks.length === 0) ensureStarterTask();
         const prev = tasks[index - 1];
         const next = tasks[index];
         if (prev) render({ focusTaskId: prev.id });
         else if (next) render({ focusTaskId: next.id });
-        else render({ focusAdd: true });
+        else render({ focusTaskId: tasks[0]?.id });
       }
 
       function undoDelete() {
@@ -1203,8 +1297,7 @@
       }
 
       function focusAdd() {
-        if (tasks.length === 0) emptyStateEl.focus();
-        else addTaskBottomBtn.focus();
+        addTaskBottomBtn.focus();
       }
 
       function classifyTasks() {
@@ -1229,13 +1322,57 @@
         return `${name} (high bound)`;
       }
 
-      function fitLogNormal(mode, p90) {
-        if (!(mode > 0) || !(p90 > 0) || p90 < mode) return null;
-        if (p90 === mode) return { mu: Math.log(mode), sigma: 0 };
-        const logRatio = Math.log(p90 / mode);
-        const sigma = (-Z90 + Math.sqrt(Z90 * Z90 + 4 * logRatio)) / 2;
-        const mu = Math.log(mode) + sigma * sigma;
+      function maxAverageHighRatio(target = highTarget) {
+        const z = highZ(target);
+        return Math.exp((z * z) / 2);
+      }
+
+      function fitLogNormal(low, high) {
+        if (!(low > 0) || !(high > 0) || high < low) return null;
+        if (high === low) return { mu: Math.log(low), sigma: 0 };
+        const z = highZ();
+        if (lowKind === "avg") {
+          // mean = exp(mu + sigma²/2), P = exp(mu + z·sigma)
+          // ⇒ ln(P/mean) = z·sigma − sigma²/2
+          // Possible only when high/low ≤ exp(z²/2).
+          const logRatio = Math.log(high / low);
+          const disc = z * z - 2 * logRatio;
+          if (!(disc >= 0)) return null;
+          const sigma = z - Math.sqrt(disc);
+          if (!(sigma >= 0) || !Number.isFinite(sigma)) return null;
+          const mu = Math.log(low) - (sigma * sigma) / 2;
+          if (!Number.isFinite(mu)) return null;
+          return { mu, sigma };
+        }
+        // mode = exp(mu − sigma²), P = exp(mu + z·sigma)
+        // ⇒ ln(P/mode) = sigma² + z·sigma
+        const logRatio = Math.log(high / low);
+        const sigma = (-z + Math.sqrt(z * z + 4 * logRatio)) / 2;
+        if (!(sigma >= 0) || !Number.isFinite(sigma)) return null;
+        const mu = Math.log(low) + sigma * sigma;
+        if (!Number.isFinite(mu)) return null;
         return { mu, sigma };
+      }
+
+      function unfitEstimateTasks(readyTasks) {
+        return readyTasks.filter(
+          (task) =>
+            !fitLogNormal(estimateToHours(task.mode), estimateToHours(task.p90)),
+        );
+      }
+
+      function unfitEstimateMessage(unfitTasks) {
+        if (lowKind === "avg") {
+          const maxRatio = maxAverageHighRatio();
+          const names = unfitTasks
+            .map((task) => task.name.trim() || "Untitled task")
+            .join("; ");
+          return (
+            `With Average + ${highLabel()}, a task’s high bound can be at most ~${maxRatio.toFixed(1)}× its low bound ` +
+            `(no log-normal sits that far below its ${highLabel()}). Too wide: ${names}.`
+          );
+        }
+        return "Could not simulate these estimates.";
       }
 
       function randomNormal() {
@@ -1457,7 +1594,9 @@
 
       function updateSimControls() {
         const { ready, incomplete } = classifyTasks();
-        const canSimulate = ready.length > 0 && incomplete.length === 0 && !simulating;
+        const unfit = incomplete.length === 0 ? unfitEstimateTasks(ready) : [];
+        const canSimulate =
+          ready.length > 0 && incomplete.length === 0 && unfit.length === 0 && !simulating;
         resimulateBtn.disabled = !canSimulate;
         simButtonLabelEl.textContent = simulating
           ? "Simulating…"
@@ -1477,6 +1616,11 @@
         }
         if (incomplete.length > 0) {
           outputStatusEl.textContent = `Finish estimates before simulating: ${incomplete.map(missingLabel).join("; ")}.`;
+          outputStatusEl.classList.remove("hidden");
+          return;
+        }
+        if (unfit.length > 0) {
+          outputStatusEl.textContent = unfitEstimateMessage(unfit);
           outputStatusEl.classList.remove("hidden");
           return;
         }
@@ -1789,16 +1933,145 @@
 
       function scheduleBoundary(businessDays) {
         if (businessDays <= 0) return 0;
-        return workingDaysToCalendarElapsed(startDate, businessDays) + 1;
+        // Same elapsed mapping as histogram markers — no +1, or bars sit one day past the lines.
+        return workingDaysToCalendarElapsed(startDate, businessDays);
       }
 
-      function addScheduleAxisRow(xMax, axis) {
+      function placeScheduleMarkerLabels(markers, xMax) {
+        const rawWidth =
+          scheduleRowsEl.clientWidth ||
+          scheduleSectionEl.clientWidth ||
+          640;
+        const chartWidth = Math.max(rawWidth - CHART_GUTTER - CHART_EDGE_PAD * 2, 160);
+        const pxPerUnit = chartWidth / Math.max(xMax, 1);
+        const rowHeight = 18;
+        const laid = markers.map((marker, index) => {
+          const widthPx = marker.content.length * 6.2 + 12;
+          return {
+            index,
+            x: marker.x,
+            halfW: widthPx / 2,
+            heightPx: 18,
+            xAdjust: 0,
+            yAdjust: -8,
+          };
+        });
+
+        function rect(item) {
+          return {
+            left: item.x + (item.xAdjust - item.halfW) / pxPerUnit,
+            right: item.x + (item.xAdjust + item.halfW) / pxPerUnit,
+            top: item.yAdjust,
+            bottom: item.yAdjust + item.heightPx,
+          };
+        }
+
+        function overlaps(a, b) {
+          return (
+            a.left < b.right + 4 / pxPerUnit &&
+            a.right > b.left - 4 / pxPerUnit &&
+            a.top < b.bottom + 2 &&
+            b.top < a.bottom + 2
+          );
+        }
+
+        const placed = [];
+        for (const cur of laid) {
+          let found = false;
+          for (let row = 0; row < 4 && !found; row++) {
+            cur.yAdjust = -8 - row * rowHeight;
+            cur.xAdjust = 0;
+            const box = rect(cur);
+            if (!placed.some((prev) => overlaps(box, prev))) {
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            cur.yAdjust = -8;
+            cur.xAdjust = cur.halfW + 8;
+          }
+          placed.push(rect(cur));
+        }
+        return laid.map((item) => ({ xAdjust: item.xAdjust, yAdjust: item.yAdjust }));
+      }
+
+      function buildScheduleMarkers(readyTasks, effortDays) {
+        const chainDays = readyTasks.reduce(
+          (sum, task) => sum + estimateToBusinessDays(task.mode),
+          0,
+        );
+        const sumWorst = readyTasks.reduce(
+          (sum, task) => sum + estimateToBusinessDays(task.p90),
+          0,
+        );
+        const sortedEffort = [...effortDays].sort((a, b) => a - b);
+        const median = percentile(sortedEffort, 0.5);
+        const p70 = percentile(sortedEffort, 0.7);
+        const p90 = percentile(sortedEffort, 0.9);
+        const mark = (id, days, color, name, dash = []) => {
+          const x = workingDaysToCalendarElapsed(startDate, days);
+          const date = formatAxisDate(dateForWorkingDays(startDate, days));
+          return {
+            id,
+            x,
+            color,
+            dash,
+            content: `${name} · ${date}`,
+          };
+        };
+        return [
+          mark("best", chainDays, "rgb(100 116 139)", "Best", [4, 3]),
+          mark("median", median, "rgb(37 99 235)", "Median"),
+          mark("p70", p70, "rgb(217 119 6)", "P70"),
+          mark("p90", p90, "rgb(220 38 38)", "P90"),
+          mark("worst", sumWorst, "rgb(51 65 85)", "Worst", [4, 3]),
+        ];
+      }
+
+      function scheduleMarkerAnnotations(markers, { withLabels = false, xMax = 1 } = {}) {
+        const annotations = {};
+        const places = withLabels ? placeScheduleMarkerLabels(markers, xMax) : [];
+        markers.forEach((marker, index) => {
+          annotations[`${marker.id}Line`] = {
+            type: "line",
+            clip: false,
+            xMin: marker.x,
+            xMax: marker.x,
+            borderColor: marker.color,
+            borderWidth: 1.5,
+            borderDash: marker.dash,
+          };
+          if (withLabels) {
+            annotations[`${marker.id}Label`] = {
+              type: "label",
+              clip: false,
+              xValue: marker.x,
+              yValue: 0,
+              xAdjust: places[index].xAdjust,
+              yAdjust: places[index].yAdjust,
+              content: marker.content,
+              color: marker.color,
+              backgroundColor: "rgb(255 255 255 / 0.94)",
+              borderColor: marker.color,
+              borderWidth: 1,
+              borderRadius: 4,
+              font: { size: 10 },
+              padding: { x: 5, y: 2 },
+            };
+          }
+        });
+        return annotations;
+      }
+
+      function addScheduleAxisRow(xMax, axis, markers = []) {
         const scales = dayDateScales(0, xMax);
         scales.x.display = axis === "days";
         scales.xDate.display = axis === "date";
+        const withLabels = axis === "date" && markers.length > 0;
         const label = document.createElement("div");
         const wrap = document.createElement("div");
-        wrap.className = "h-12";
+        wrap.className = withLabels ? "h-20" : "h-12";
         const canvas = document.createElement("canvas");
         wrap.append(canvas);
         scheduleRowsEl.append(label, wrap);
@@ -1811,8 +2084,21 @@
               maintainAspectRatio: false,
               animation: false,
               parsing: false,
-              layout: { padding: { left: CHART_EDGE_PAD, right: CHART_EDGE_PAD } },
-              plugins: { legend: { display: false }, tooltip: { enabled: false } },
+              layout: {
+                padding: {
+                  left: CHART_EDGE_PAD,
+                  right: CHART_EDGE_PAD,
+                  top: withLabels ? 28 : 0,
+                },
+              },
+              plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false },
+                annotation: {
+                  clip: false,
+                  annotations: scheduleMarkerAnnotations(markers, { withLabels, xMax }),
+                },
+              },
               scales: {
                 ...scales,
                 y: {
@@ -1827,7 +2113,7 @@
         );
       }
 
-      function addScheduleBarRow(name, from, to, days, color, xMax) {
+      function addScheduleBarRow(name, from, to, days, color, xMax, markers = [], endDate = null) {
         const scales = dayDateScales(0, xMax);
         scales.x.display = false;
         scales.xDate.display = false;
@@ -1839,6 +2125,24 @@
         const canvas = document.createElement("canvas");
         wrap.append(canvas);
         scheduleRowsEl.append(labelEl, wrap);
+        const annotations = scheduleMarkerAnnotations(markers);
+        if (endDate) {
+          annotations.taskEndDate = {
+            type: "label",
+            clip: false,
+            xValue: to,
+            yValue: name,
+            content: endDate,
+            color: "rgb(51 65 85)",
+            backgroundColor: "rgb(255 255 255 / 0.92)",
+            borderColor: "rgb(226 232 240)",
+            borderWidth: 1,
+            borderRadius: 3,
+            font: { size: 10 },
+            padding: { x: 4, y: 1 },
+            xAdjust: 6,
+          };
+        }
         scheduleCharts.push(
           new Chart(canvas, {
             type: "bar",
@@ -1871,11 +2175,15 @@
                     label() {
                       const first = formatAxisDate(dateForElapsedDays(startDate, from));
                       const last = formatAxisDate(
-                        dateForElapsedDays(startDate, Math.max(from, to - 1)),
+                        dateForElapsedDays(startDate, Math.max(from, to)),
                       );
                       return `${first} → ${last} · ${formatDayCount(days)} business days`;
                     },
                   },
+                },
+                annotation: {
+                  clip: false,
+                  annotations,
                 },
               },
               scales: { ...scales, y: { display: false } },
@@ -1888,7 +2196,9 @@
         if (typeof Chart === "undefined" || readyTasks.length === 0) return;
         clearScheduleCharts();
         scheduleSectionEl.classList.remove("hidden");
-        addScheduleAxisRow(xMax, "date");
+
+        const markers = buildScheduleMarkers(readyTasks, effortDays);
+        addScheduleAxisRow(xMax, "date", markers);
 
         let chainDays = 0;
         for (const task of readyTasks) {
@@ -1902,6 +2212,8 @@
             best,
             "rgb(15 23 42 / 0.8)",
             xMax,
+            markers,
+            formatAxisDate(dateForWorkingDays(startDate, chainDays)),
           );
         }
 
@@ -1915,9 +2227,11 @@
           bufferDays,
           "rgb(245 158 11 / 0.85)",
           xMax,
+          markers,
+          formatAxisDate(dateForWorkingDays(startDate, commitDays)),
         );
 
-        addScheduleAxisRow(xMax, "days");
+        addScheduleAxisRow(xMax, "days", markers);
 
         const commitDate = formatAxisDate(dateForWorkingDays(startDate, commitDays));
         const sumWorst = readyTasks.reduce(
@@ -1932,6 +2246,13 @@
       async function runSimulation() {
         const { ready, incomplete } = classifyTasks();
         if (ready.length === 0 || incomplete.length > 0 || simulating) return;
+        const unfit = unfitEstimateTasks(ready);
+        if (unfit.length > 0) {
+          outputStatusEl.textContent = unfitEstimateMessage(unfit);
+          outputStatusEl.classList.remove("hidden");
+          updateSimControls();
+          return;
+        }
         const token = ++simToken;
         simulating = true;
         resultsFresh = false;
@@ -1947,7 +2268,7 @@
         simulating = false;
         setSimProgress(false);
         if (result.totals.length === 0) {
-          outputStatusEl.textContent = "Could not simulate these estimates.";
+          outputStatusEl.textContent = unfitEstimateMessage(ready);
           updateSimControls();
           return;
         }
@@ -2117,13 +2438,13 @@
           preserveOutput = false,
         } = options;
         taskListEl.replaceChildren();
-        const hasTasks = tasks.length > 0;
-        emptyStateEl.classList.toggle("hidden", hasTasks);
-        tasksHeadingEl.classList.toggle("hidden", hasTasks);
-        columnHeadersEl.classList.toggle("hidden", !hasTasks);
-        addTaskBottomBtn.classList.toggle("hidden", !hasTasks);
+        ensureStarterTask();
+        columnHeadersEl.classList.remove("hidden");
+        addTaskBottomBtn.classList.remove("hidden");
         renderMethodChips();
         renderUnitChips();
+        renderLowChips();
+        renderHighChips();
         renderBufferChips();
 
         for (const task of tasks) {
@@ -2239,7 +2560,6 @@
       }
 
       addTaskBottomBtn.addEventListener("click", () => addTask());
-      emptyStateEl.addEventListener("click", () => addTask());
       undoDeleteBtn.addEventListener("click", undoDelete);
       startDateEl.addEventListener("change", () => setStartDate(startDateEl.value));
       calendarMenuBtnEl.addEventListener("click", (event) => {
@@ -2274,6 +2594,14 @@
         const btn = event.target.closest("[data-unit]");
         if (btn) setEstimateUnit(btn.getAttribute("data-unit"));
       });
+      lowChipsEl.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-low]");
+        if (btn) setLowKind(btn.getAttribute("data-low"));
+      });
+      highChipsEl.addEventListener("click", (event) => {
+        const btn = event.target.closest("[data-high]");
+        if (btn) setHighTarget(btn.getAttribute("data-high"));
+      });
       bufferTargetChipsEl.addEventListener("click", (event) => {
         const btn = event.target.closest("[data-target]");
         if (btn) setBufferTarget(btn.getAttribute("data-target"));
@@ -2287,11 +2615,13 @@
         event.target.blur();
       });
       window.addEventListener("hashchange", () => {
-        loadFromHash();
-        render();
+        const seeded = loadFromHash();
+        render(seeded ? { focusTaskId: tasks[0]?.id } : {});
       });
-      loadFromHash();
-      render();
+      {
+        const seeded = loadFromHash();
+        render(seeded ? { focusTaskId: tasks[0]?.id } : {});
+      }
     </script>
   </body>
 </html>
